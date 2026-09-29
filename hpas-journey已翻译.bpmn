@@ -1,0 +1,498 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_HPAS_Journey" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:collaboration id="Collaboration_HPAS">
+    <bpmn:participant id="Participant_Hospital" name="Hospital (HPAS Patient Pathway)" processRef="Process_HPAS_Journey" />
+    <bpmn:participant id="Participant_External" name="External Services &#38; Stakeholders" processRef="Process_External_Parties" />
+    <bpmn:messageFlow id="MsgFlow_01_Referrer" name="Referral Materials / Additional Information" sourceRef="Call_01_ReferralIntake" targetRef="Task_Ext_Referrer" />
+    <bpmn:messageFlow id="MsgFlow_02_Referrer" name="Review Decision Notification" sourceRef="Call_02_ClinicalReview" targetRef="Task_Ext_Referrer" />
+    <bpmn:messageFlow id="MsgFlow_03_Scheduler" name="Scheduling Request / Result" sourceRef="Call_03_Scheduling" targetRef="Task_Ext_Scheduler" />
+    <bpmn:messageFlow id="MsgFlow_04_Correspondence" name="Notification / Phone Call" sourceRef="Call_04_Notification" targetRef="Task_Ext_Correspondence" />
+    <bpmn:messageFlow id="MsgFlow_05_Correspondence" name="Letter Distribution" sourceRef="Call_05_ClinicLetter" targetRef="Task_Ext_Correspondence" />
+    <bpmn:messageFlow id="MsgFlow_06_Funder" name="Funding Approval" sourceRef="Call_06_Funding" targetRef="Task_Ext_Funder" />
+    <bpmn:messageFlow id="MsgFlow_07_PSP" name="Payment Request / Status" sourceRef="Call_07_Payment" targetRef="Task_Ext_PSP" />
+    <bpmn:messageFlow id="MsgFlow_08_Patient" name="Patient Inquiry Call" sourceRef="Call_08_Enquiry" targetRef="Task_Ext_Patient" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_HPAS_Journey" name="HPAS 总图：患者转诊—治疗—行政全路径" isExecutable="true">
+    <bpmn:documentation>HPAS（Hospital Patient Referral, Treatment and Administration System）端到端总流程。案例路径：GP / 其他医院转诊 → 医疗秘书核查材料（缺件则请求转介方补件，补件回环）→ 顾问医师临床审核并决策（接受 / 拒绝 / 要求补件 / 转介他院，决定与决定人必须留痕）→ 只有被接受才能安排新患者预约 → 通过外部排程服务找号源并确认 → 患者通知（两周内必须电话联系，每次尝试留痕）→ 门诊信函（顾问撰写并批准、秘书行政检查、外部渠道分发，7 天时限与升级）→ 资助确定（医院 / 保险 / 资助机构 / 自费，需批准时等外部机构回执）→ 支付处理（需自付时由外部 PSP 收取，成功或已记录豁免才确认预约）→ 持续的患者咨询处理与路由（行政 / 财务 / 临床）。八个 Call Activity 分别调用 Process_P1_ReferralIntake、Process_P2_ClinicalReview、Process_P3_AppointmentScheduling、Process_P4_PatientNotification、Process_P10_LetterProcess、Process_P7_FundingDetermination、Process_P12_PaymentProcessing、Process_P8_InquiryRouting。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_HPAS">
+      <bpmn:lane id="Lane_Secretary" name="Medical Secretary">
+        <bpmn:flowNodeRef>StartEvent_ReferralArrived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Call_01_ReferralIntake</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Consultant" name="Consultant">
+        <bpmn:flowNodeRef>Call_02_ClinicalReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_NotAccepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Call_05_ClinicLetter</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Booking" name="Outpatient Scheduling Team">
+        <bpmn:flowNodeRef>Call_03_Scheduling</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Call_04_Notification</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_CallHandling" name="Call Processing">
+        <bpmn:flowNodeRef>Call_08_Enquiry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_JourneyCompleted</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finance" name="Finance Team">
+        <bpmn:flowNodeRef>Call_06_Funding</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Call_07_Payment</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_ReferralArrived" name="Referral received ( GP / other hospital)">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="hpas-start-journey" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_Start_To_01" sourceRef="StartEvent_ReferralArrived" targetRef="Call_01_ReferralIntake" />
+    <bpmn:callActivity id="Call_01_ReferralIntake" name="① Option 1: Referral Intake &#38; Completeness Verification&#10;(For Medical Secretary: Strictly Non-Clinical)">
+      <bpmn:documentation>选择 1（Process_P1_ReferralIntake）。医疗秘书检查转诊随附材料；缺件时向转介方请求补件（跨 Pool 消息 ReferralSupplementRequested ⇄ ReferralSupplementReceived），补件到达后重新核查。医疗秘书不得评估临床适宜性（BR-01），材料完整后才移交顾问医师（BR-02）。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P1_ReferralIntake" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_01_To_02</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_01_To_02" sourceRef="Call_01_ReferralIntake" targetRef="Call_02_ClinicalReview" />
+    <bpmn:callActivity id="Call_02_ClinicalReview" name="② Option 2: Clinical Review &#38; Referral Decision-Making&#10;(Accept / Reject / Request Additional Information / Redirect to Another Facility; Documentation Required)）">
+      <bpmn:documentation>选择 2（Process_P2_ClinicalReview）。顾问医师接受 / 拒绝 / 要求补件 / 转介其他专科服务，决定理由与决定人必须留痕；只有被接受才能安排新患者预约。四条决策分支分别通过跨 Pool 消息通知外部方。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P2_ClinicalReview" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_01_To_02</bpmn:incoming>
+      <bpmn:outgoing>Flow_02_To_Gateway</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_02_To_Gateway" sourceRef="Call_02_ClinicalReview" targetRef="Gateway_Accepted" />
+    <bpmn:exclusiveGateway id="Gateway_Accepted" name="Is the consultant accepting the referral?" default="Flow_NotAccepted">
+      <bpmn:incoming>Flow_02_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Accepted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NotAccepted</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_Accepted" name="Yes: Proceed to Scheduling" sourceRef="Gateway_Accepted" targetRef="Call_03_Scheduling">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= reviewForm != null and reviewForm.decision = "accept"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_NotAccepted" name="No: Reject / Request Additional Information / Redirect" sourceRef="Gateway_Accepted" targetRef="EndEvent_NotAccepted" />
+    <bpmn:endEvent id="EndEvent_NotAccepted" name="Referral Rejected (Relevant Parties Notified)">
+      <bpmn:incoming>Flow_NotAccepted</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:callActivity id="Call_03_Scheduling" name="③ Option 3: New Patient Scheduling&#10;(External Scheduling Service; If Failed, Keep as Pending and Retry)">
+      <bpmn:documentation>选择 3（Process_P3_AppointmentScheduling）。按专科 / 优先级 / 期望时间窗，通过外部排程服务寻找号源并确认预约；外部暂时无号源时保持 Pending、通知责任团队并记录重试（Timer 重试环），不得产生重复预约。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P3_AppointmentScheduling" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Accepted</bpmn:incoming>
+      <bpmn:outgoing>Flow_03_To_04</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_03_To_04" sourceRef="Call_03_Scheduling" targetRef="Call_04_Notification" />
+    <bpmn:callActivity id="Call_04_Notification" name="④ Option 4: Patient Notification &#38; Contact&#10;(Letter Notification; Phone Call Required Within Two Weeks)">
+      <bpmn:documentation>选择 4（Process_P4_PatientNotification）。预约通知通常以信函经外部通信服务发出；若预约在两周内，必须同时电话联系。每次联系尝试与结果都要留痕（未接听、号码错误、患者要求改期）。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P4_PatientNotification" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03_To_04</bpmn:incoming>
+      <bpmn:outgoing>Flow_04_To_05</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_04_To_05" sourceRef="Call_04_Notification" targetRef="Call_05_ClinicLetter" />
+    <bpmn:callActivity id="Call_05_ClinicLetter" name="⑤ Option 5: Outpatient Letter Drafting, Approval, &#38; Distribution&#10;(Drafted &#38; Approved by Consultant + Administrative Check by Medical Secretary + Escalation to Admin Manager)">
+      <bpmn:documentation>选择 5（Process_P10_LetterProcess）。顾问撰写并批准信函（临床内容责任在顾问），医疗秘书做行政检查并确认收件人、安排分发；行政人员不得改变临床含义，疑似临床错误退回顾问。7 天时限，超期进入路径监控并逐步升级到行政经理与更高管理层。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P10_LetterProcess" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_04_To_05</bpmn:incoming>
+      <bpmn:outgoing>Flow_05_To_06</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_05_To_06" sourceRef="Call_05_ClinicLetter" targetRef="Call_06_Funding" />
+    <bpmn:callActivity id="Call_06_Funding" name="⑥ Option 6: Funding Determination &#38; Documentation&#10;(Hospital / Insurance / Grant Agency / Self-Pay; Await Receipt/Confirmation if Approval Required)">
+      <bpmn:documentation>选择 6（Process_P7_FundingDetermination）。确定治疗由医院承担、保险 / 资助机构承担还是患者自付；需要批准时登记责任机构、授权参考号、批准金额与限制条件，并等外部机构回执。资助是支付的前置门控。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P7_FundingDetermination" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_05_To_06</bpmn:incoming>
+      <bpmn:outgoing>Flow_06_To_07</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_06_To_07" sourceRef="Call_06_Funding" targetRef="Call_07_Payment" />
+    <bpmn:callActivity id="Call_07_Payment" name="⑦ Option 7: Payment Processing&#10;(External PSP Collection; Appointment Confirmed Only Upon Successful Payment or Recorded Waiver)">
+      <bpmn:documentation>选择 7（Process_P12_PaymentProcessing）。需自付时由系统计算费用并向外部 PSP 发起安全支付请求，回执包含支付状态、交易号、日期与金额；系统不得保存完整卡信息。支付成功或已记录豁免 / 资助批准才确认治疗预约；失败 / 重复 / 未完成分别处理，不得重复扣款。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P12_PaymentProcessing" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_06_To_07</bpmn:incoming>
+      <bpmn:outgoing>Flow_07_To_08</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_07_To_08" sourceRef="Call_07_Payment" targetRef="Call_08_Enquiry" />
+    <bpmn:callActivity id="Call_08_Enquiry" name="⑧ Option 8: Patient Inquiry Handling &#38; Routing&#10;(Registration / Triage / Prioritization → Administrative / Financial / Clinical)">
+      <bpmn:documentation>选择 8（Process_P8_InquiryRouting）。每通咨询都要登记、分类、定优先级并路由到责任团队：简单行政可当场答复，财务类转财务团队，临床类转 CNS / 授权临床人员（紧急高亮）。呼叫处理不得诊断、解读检验结果或给临床建议。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P8_InquiryRouting" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_07_To_08</bpmn:incoming>
+      <bpmn:outgoing>Flow_08_To_End</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_08_To_End" sourceRef="Call_08_Enquiry" targetRef="EndEvent_JourneyCompleted" />
+    <bpmn:endEvent id="EndEvent_JourneyCompleted" name="Patient Pathway Completed (Enter Ongoing Follow-Up)">
+      <bpmn:incoming>Flow_08_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_External_Parties" name="外部服务与相关方" isExecutable="false">
+    <bpmn:documentation>外部 Pool：案例中与医院交互的外部方 —— 转诊方（GP / 其他医院）、外部排程服务、外部通信服务与患者、资助机构 / 保险公司、支付服务提供商（PSP）。各阶段通过 bpmn:messageFlow 与其往来消息。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_External">
+      <bpmn:lane id="Lane_ExtReferrer" name="Referring Party (GP / Other Hospital)">
+        <bpmn:flowNodeRef>Task_Ext_Referrer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_Ext_Parties</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ExtScheduler" name="External Scheduling Service">
+        <bpmn:flowNodeRef>Task_Ext_Scheduler</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ExtCorrespondence" name="External Communication Service / Patient">
+        <bpmn:flowNodeRef>Task_Ext_Correspondence</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Ext_Patient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Ext_Parties</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ExtFunder" name="Grant Agency / Insurance Company">
+        <bpmn:flowNodeRef>Task_Ext_Funder</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ExtPSP" name="Payment Service Provider (PSP)">
+        <bpmn:flowNodeRef>Task_Ext_PSP</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:userTask id="Task_Ext_Referrer" name="Submit Referral Materials / Additional Information, Receive Review Decision" />
+    <bpmn:serviceTask id="Task_Ext_Scheduler" name="Allocate Appointment Slots, Return Scheduling Results">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="external-scheduling-service" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Ext_Correspondence" name="Send Appointment Notifications &#38; Outpatient Letters, Assist with Phone Calls">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="external-correspondence-service" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_Ext_Patient" name="Receive Notifications / Incoming Inquiry Calls / On-site Visits" />
+    <bpmn:userTask id="Task_Ext_Funder" name="Approve Funding Applications, Return Approval Results &#38; Restrictions" />
+    <bpmn:serviceTask id="Task_Ext_PSP" name="Process Payment, Return Status / Transaction ID / Amount">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="external-psp-service" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Ext_Parties" name="External Party Participation (Ongoing)">
+      <bpmn:incoming>Flow_Ext_07</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Ext_01" sourceRef="StartEvent_Ext_Parties" targetRef="Task_Ext_Referrer" />
+    <bpmn:sequenceFlow id="Flow_Ext_02" sourceRef="Task_Ext_Referrer" targetRef="Task_Ext_Scheduler" />
+    <bpmn:sequenceFlow id="Flow_Ext_03" sourceRef="Task_Ext_Scheduler" targetRef="Task_Ext_Correspondence" />
+    <bpmn:sequenceFlow id="Flow_Ext_04" sourceRef="Task_Ext_Correspondence" targetRef="Task_Ext_Funder" />
+    <bpmn:sequenceFlow id="Flow_Ext_05" sourceRef="Task_Ext_Funder" targetRef="Task_Ext_PSP" />
+    <bpmn:sequenceFlow id="Flow_Ext_06" sourceRef="Task_Ext_PSP" targetRef="Task_Ext_Patient" />
+    <bpmn:sequenceFlow id="Flow_Ext_07" sourceRef="Task_Ext_Patient" targetRef="EndEvent_Ext_Parties" />
+    <bpmn:startEvent id="StartEvent_Ext_Parties" name="External Party Participation in Patient Pathway">
+      <bpmn:outgoing>Flow_Ext_01</bpmn:outgoing>
+    </bpmn:startEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_HPAS">
+    <bpmndi:BPMNPlane id="BPMNPlane_HPAS" bpmnElement="Collaboration_HPAS">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="160" y="100" width="2760" height="710" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Finance_di" bpmnElement="Lane_Finance" isHorizontal="true">
+        <dc:Bounds x="190" y="660" width="2730" height="150" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_CallHandling_di" bpmnElement="Lane_CallHandling" isHorizontal="true">
+        <dc:Bounds x="190" y="530" width="2730" height="130" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Booking_di" bpmnElement="Lane_Booking" isHorizontal="true">
+        <dc:Bounds x="190" y="380" width="2730" height="150" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Consultant_di" bpmnElement="Lane_Consultant" isHorizontal="true">
+        <dc:Bounds x="190" y="230" width="2730" height="150" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Secretary_di" bpmnElement="Lane_Secretary" isHorizontal="true">
+        <dc:Bounds x="190" y="100" width="2730" height="130" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_ReferralArrived_di" bpmnElement="StartEvent_ReferralArrived">
+        <dc:Bounds x="250" y="147" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="226" y="190" width="84" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_01_ReferralIntake_di" bpmnElement="Call_01_ReferralIntake" isExpanded="false">
+        <dc:Bounds x="340" y="115" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_02_ClinicalReview_di" bpmnElement="Call_02_ClinicalReview" isExpanded="false">
+        <dc:Bounds x="620" y="255" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Accepted_di" bpmnElement="Gateway_Accepted" isMarkerVisible="true">
+        <dc:Bounds x="900" y="280" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="886" y="240" width="81" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_NotAccepted_di" bpmnElement="EndEvent_NotAccepted">
+        <dc:Bounds x="907" y="395" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="884" y="438" width="86" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_03_Scheduling_di" bpmnElement="Call_03_Scheduling" isExpanded="false">
+        <dc:Bounds x="1130" y="405" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_04_Notification_di" bpmnElement="Call_04_Notification" isExpanded="false">
+        <dc:Bounds x="1410" y="405" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_05_ClinicLetter_di" bpmnElement="Call_05_ClinicLetter" isExpanded="false">
+        <dc:Bounds x="1690" y="255" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_06_Funding_di" bpmnElement="Call_06_Funding" isExpanded="false">
+        <dc:Bounds x="1970" y="685" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_07_Payment_di" bpmnElement="Call_07_Payment" isExpanded="false">
+        <dc:Bounds x="2250" y="685" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_08_Enquiry_di" bpmnElement="Call_08_Enquiry" isExpanded="false">
+        <dc:Bounds x="2530" y="555" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_JourneyCompleted_di" bpmnElement="EndEvent_JourneyCompleted">
+        <dc:Bounds x="2820" y="562" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2790" y="605" width="98" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_01_di" bpmnElement="Flow_Start_To_01">
+        <di:waypoint x="286" y="165" />
+        <di:waypoint x="340" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01_To_02_di" bpmnElement="Flow_01_To_02">
+        <di:waypoint x="560" y="165" />
+        <di:waypoint x="590" y="165" />
+        <di:waypoint x="590" y="305" />
+        <di:waypoint x="620" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_02_To_Gateway_di" bpmnElement="Flow_02_To_Gateway">
+        <di:waypoint x="840" y="305" />
+        <di:waypoint x="900" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Accepted_di" bpmnElement="Flow_Accepted">
+        <di:waypoint x="950" y="305" />
+        <di:waypoint x="1090" y="305" />
+        <di:waypoint x="1090" y="455" />
+        <di:waypoint x="1130" y="455" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1006" y="282" width="78" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NotAccepted_di" bpmnElement="Flow_NotAccepted">
+        <di:waypoint x="925" y="330" />
+        <di:waypoint x="925" y="395" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="923" y="340" width="113" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03_To_04_di" bpmnElement="Flow_03_To_04">
+        <di:waypoint x="1350" y="455" />
+        <di:waypoint x="1410" y="455" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_04_To_05_di" bpmnElement="Flow_04_To_05">
+        <di:waypoint x="1630" y="455" />
+        <di:waypoint x="1660" y="455" />
+        <di:waypoint x="1660" y="305" />
+        <di:waypoint x="1690" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_05_To_06_di" bpmnElement="Flow_05_To_06">
+        <di:waypoint x="1910" y="305" />
+        <di:waypoint x="1940" y="305" />
+        <di:waypoint x="1940" y="735" />
+        <di:waypoint x="1970" y="735" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_06_To_07_di" bpmnElement="Flow_06_To_07">
+        <di:waypoint x="2190" y="735" />
+        <di:waypoint x="2250" y="735" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_07_To_08_di" bpmnElement="Flow_07_To_08">
+        <di:waypoint x="2470" y="735" />
+        <di:waypoint x="2500" y="735" />
+        <di:waypoint x="2500" y="605" />
+        <di:waypoint x="2530" y="605" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_08_To_End_di" bpmnElement="Flow_08_To_End">
+        <di:waypoint x="2750" y="605" />
+        <di:waypoint x="2785" y="605" />
+        <di:waypoint x="2785" y="580" />
+        <di:waypoint x="2820" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_External_di" bpmnElement="Participant_External" isHorizontal="true">
+        <dc:Bounds x="160" y="950" width="2760" height="570" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ExtPSP_di" bpmnElement="Lane_ExtPSP" isHorizontal="true">
+        <dc:Bounds x="190" y="1410" width="2730" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ExtFunder_di" bpmnElement="Lane_ExtFunder" isHorizontal="true">
+        <dc:Bounds x="190" y="1300" width="2730" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ExtCorrespondence_di" bpmnElement="Lane_ExtCorrespondence" isHorizontal="true">
+        <dc:Bounds x="190" y="1170" width="2730" height="130" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ExtScheduler_di" bpmnElement="Lane_ExtScheduler" isHorizontal="true">
+        <dc:Bounds x="190" y="1060" width="2730" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ExtReferrer_di" bpmnElement="Lane_ExtReferrer" isHorizontal="true">
+        <dc:Bounds x="190" y="950" width="2730" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_Referrer_di" bpmnElement="Task_Ext_Referrer">
+        <dc:Bounds x="400" y="970" width="240" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_Scheduler_di" bpmnElement="Task_Ext_Scheduler">
+        <dc:Bounds x="1120" y="1080" width="240" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_Correspondence_di" bpmnElement="Task_Ext_Correspondence">
+        <dc:Bounds x="1380" y="1200" width="240" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_Patient_di" bpmnElement="Task_Ext_Patient">
+        <dc:Bounds x="2520" y="1200" width="240" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_Funder_di" bpmnElement="Task_Ext_Funder">
+        <dc:Bounds x="1960" y="1320" width="240" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_PSP_di" bpmnElement="Task_Ext_PSP">
+        <dc:Bounds x="2240" y="1430" width="240" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Ext_Parties_di" bpmnElement="EndEvent_Ext_Parties">
+        <dc:Bounds x="2820" y="1217" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2804" y="1260" width="70" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Ext_Parties_di" bpmnElement="StartEvent_Ext_Parties">
+        <dc:Bounds x="282" y="972" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="260" y="1018" width="80" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Ext_01_di" bpmnElement="Flow_Ext_01">
+        <di:waypoint x="318" y="990" />
+        <di:waypoint x="343" y="990" />
+        <di:waypoint x="343" y="1025" />
+        <di:waypoint x="400" y="1025" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ext_02_di" bpmnElement="Flow_Ext_02">
+        <di:waypoint x="640" y="1025" />
+        <di:waypoint x="700" y="1025" />
+        <di:waypoint x="700" y="1115" />
+        <di:waypoint x="1120" y="1115" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ext_03_di" bpmnElement="Flow_Ext_03">
+        <di:waypoint x="1360" y="1115" />
+        <di:waypoint x="1370" y="1115" />
+        <di:waypoint x="1370" y="1235" />
+        <di:waypoint x="1380" y="1235" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ext_04_di" bpmnElement="Flow_Ext_04">
+        <di:waypoint x="1620" y="1235" />
+        <di:waypoint x="1700" y="1235" />
+        <di:waypoint x="1700" y="1355" />
+        <di:waypoint x="1960" y="1355" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ext_05_di" bpmnElement="Flow_Ext_05">
+        <di:waypoint x="2200" y="1355" />
+        <di:waypoint x="2215" y="1355" />
+        <di:waypoint x="2215" y="1465" />
+        <di:waypoint x="2240" y="1465" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ext_06_di" bpmnElement="Flow_Ext_06">
+        <di:waypoint x="2480" y="1465" />
+        <di:waypoint x="2500" y="1465" />
+        <di:waypoint x="2500" y="1235" />
+        <di:waypoint x="2520" y="1235" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ext_07_di" bpmnElement="Flow_Ext_07">
+        <di:waypoint x="2760" y="1235" />
+        <di:waypoint x="2820" y="1235" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_01_Referrer_di" bpmnElement="MsgFlow_01_Referrer">
+        <di:waypoint x="450" y="215" />
+        <di:waypoint x="450" y="970" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="460" y="592" width="87" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_02_Referrer_di" bpmnElement="MsgFlow_02_Referrer">
+        <di:waypoint x="730" y="355" />
+        <di:waypoint x="730" y="940" />
+        <di:waypoint x="600" y="940" />
+        <di:waypoint x="600" y="970" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="639" y="903" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_03_Scheduler_di" bpmnElement="MsgFlow_03_Scheduler">
+        <di:waypoint x="1240" y="505" />
+        <di:waypoint x="1240" y="1080" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1239" y="776" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_04_Correspondence_di" bpmnElement="MsgFlow_04_Correspondence">
+        <di:waypoint x="1520" y="505" />
+        <di:waypoint x="1520" y="1150" />
+        <di:waypoint x="1450" y="1150" />
+        <di:waypoint x="1450" y="1200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1440" y="1126" width="61" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_05_Correspondence_di" bpmnElement="MsgFlow_05_Correspondence">
+        <di:waypoint x="1800" y="355" />
+        <di:waypoint x="1800" y="1140" />
+        <di:waypoint x="1550" y="1140" />
+        <di:waypoint x="1550" y="1200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1557" y="1116" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_06_Funder_di" bpmnElement="MsgFlow_06_Funder">
+        <di:waypoint x="2080" y="785" />
+        <di:waypoint x="2080" y="1320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2067" y="1023" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_07_PSP_di" bpmnElement="MsgFlow_07_PSP">
+        <di:waypoint x="2360" y="785" />
+        <di:waypoint x="2360" y="1430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2369" y="1112" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_08_Patient_di" bpmnElement="MsgFlow_08_Patient">
+        <di:waypoint x="2640" y="655" />
+        <di:waypoint x="2640" y="1200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2644" y="903" width="71" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

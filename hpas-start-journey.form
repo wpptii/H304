@@ -1,0 +1,79 @@
+{
+  "components": [
+    {
+      "label": "Referral Number referralId (applied throughout ① Document Verification / ② Clinical Decision-Making / ③ Scheduling)",
+      "type": "textfield",
+      "id": "Field_referralId",
+      "key": "referralId",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Referral Number referralId (applied throughout ① Document Verification / ② Clinical Decision-Making / ③ Scheduling)",
+      "type": "textfield",
+      "id": "Field_appointmentId",
+      "key": "appointmentId",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Case No. caseId (⑤ Letter / ⑦ Payment)",
+      "type": "textfield",
+      "id": "Field_caseId",
+      "key": "caseId",
+      "layout": {
+        "row": "Row_3",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Appointment Date appointmentDate (YYYY-MM-DD; a phone call will be required within two weeks)",
+      "type": "textfield",
+      "id": "Field_appointmentDate",
+      "key": "appointmentDate",
+      "layout": {
+        "row": "Row_4",
+        "columns": null
+      },
+      "validate": {
+        "required": true,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    {
+      "label": "Patient Name",
+      "type": "textfield",
+      "id": "Field_patientName",
+      "key": "patientName",
+      "layout": {
+        "row": "Row_5",
+        "columns": null
+      },
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "hpas-start-journey",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}
