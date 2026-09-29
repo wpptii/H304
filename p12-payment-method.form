@@ -1,0 +1,68 @@
+{
+  "components": [
+    {
+      "label": "Amount due",
+      "type": "textfield",
+      "id": "Field_paymentForm_amount",
+      "key": "paymentForm.amount",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Payment method",
+      "values": [
+        {
+          "label": "Credit Card / Debit Card",
+          "value": "card"
+        },
+        {
+          "label": "Bank transfer",
+          "value": "bank-transfer"
+        },
+        {
+          "label": "Direct Insurance Payment",
+          "value": "insurance-direct"
+        },
+        {
+          "label": "Cash / Counter",
+          "value": "cash"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_paymentForm_paymentMethod",
+      "key": "paymentForm.paymentMethod",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Last four digits of the card number (BR-16: strictly no recording of full card numbers)",
+      "type": "textfield",
+      "id": "Field_paymentForm_cardLast4",
+      "key": "paymentForm.cardLast4",
+      "description": "Only the last four digits can be entered; the full card number and CVV must not go into the process variables.",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Payment token reference (token/authorization number returned by PSP)",
+      "type": "textfield",
+      "id": "Field_paymentForm_paymentTokenRef",
+      "key": "paymentForm.paymentTokenRef",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p12-payment-method",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

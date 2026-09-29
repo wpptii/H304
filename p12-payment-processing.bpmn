@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_P12_PaymentProcessing" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:message id="Message_PaymentRequested" name="PaymentRequested" />
+  <bpmn:message id="Message_PaymentStatusReceived" name="PaymentStatusReceived">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=caseId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_NotifyCareTeam" name="CareTeamNotified" />
+  <bpmn:collaboration id="Collaboration_P12">
+    <bpmn:participant id="Participant_Hospital" name="Hospital Pool: Finance Team" processRef="Process_P12_PaymentProcessing" />
+    <bpmn:participant id="Participant_PSP" name="PSPExternal Pool: Payment Service Provider (PSP)" processRef="Process_P12_PSPPool" />
+    <bpmn:messageFlow id="MessageFlow_PaymentRequested" name="Payment Request" sourceRef="Throw_PaymentRequest" targetRef="StartEvent_PSP_PaymentRequested" />
+    <bpmn:messageFlow id="MessageFlow_PaymentStatus" name="Payment Status Receipt" sourceRef="EndEvent_PSP_SendStatus" targetRef="Catch_PaymentStatus" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_P12_PaymentProcessing" name="Option 7: P12 Payment Processing" isExecutable="true">
+    <bpmn:documentation>选择 7：P12 支付处理。骨架：Start「资助已确定/费用已计算」→ User Task「确认费用与支付方式」Form（不存完整卡号）→ External Worker「调用 PSP 支付」topic: payment-request → XOR 支付状态：成功 → User Task「记录支付并确认预约」Form → Message 通知治疗预约团队 → End；失败/拒绝 → User Task「调查支付失败」Form → External Worker「重试/取消」topic: payment-retry → End；重复/不完整 → 异常分支记录 → End。规则：BR-16、BR-17、BR-19。亮点：External Worker、消息、异常处理都很强。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P12">
+      <bpmn:lane id="Lane_Finance" name="Finance team">
+        <bpmn:flowNodeRef>Gateway_PaymentStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecordPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InvestigateFailure</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmFeeAndMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_FundingSettled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_PaymentRecorded</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Exchange" name="Cross-Pool Communication / Retry">
+        <bpmn:flowNodeRef>Task_PaymentRetry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyCareTeam</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecordException</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ExceptionRecorded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Throw_PaymentRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Catch_PaymentStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_RetryHandled</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_Start_To_Confirm" sourceRef="StartEvent_FundingSettled" targetRef="Task_ConfirmFeeAndMethod" />
+    <bpmn:sequenceFlow id="Flow_Confirm_To_PaymentRequest" sourceRef="Task_ConfirmFeeAndMethod" targetRef="Throw_PaymentRequest" />
+    <bpmn:sequenceFlow id="Flow_PaymentRequest_To_Catch" sourceRef="Throw_PaymentRequest" targetRef="Catch_PaymentStatus" />
+    <bpmn:sequenceFlow id="Flow_PaymentRequest_To_Gateway" sourceRef="Catch_PaymentStatus" targetRef="Gateway_PaymentStatus" />
+    <bpmn:exclusiveGateway id="Gateway_PaymentStatus" name="Payment status?" default="Flow_Status_Exception">
+      <bpmn:incoming>Flow_PaymentRequest_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Status_Success</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Status_Failed</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Status_Exception</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_Status_Success" name="Success" sourceRef="Gateway_PaymentStatus" targetRef="Task_RecordPayment">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= paymentStatus = "success"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Status_Failed" name="Fail / Reject" sourceRef="Gateway_PaymentStatus" targetRef="Task_InvestigateFailure">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= paymentStatus = "failed"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Status_Exception" name="Duplicate / Incomplete" sourceRef="Gateway_PaymentStatus" targetRef="Task_RecordException" />
+    <bpmn:sequenceFlow id="Flow_Record_To_Notify" sourceRef="Task_RecordPayment" targetRef="Task_NotifyCareTeam" />
+    <bpmn:sequenceFlow id="Flow_Notify_To_End" sourceRef="Task_NotifyCareTeam" targetRef="EndEvent_PaymentRecorded" />
+    <bpmn:sequenceFlow id="Flow_Investigate_To_Retry" sourceRef="Task_InvestigateFailure" targetRef="Task_PaymentRetry" />
+    <bpmn:sequenceFlow id="Flow_Retry_To_End" sourceRef="Task_PaymentRetry" targetRef="EndEvent_RetryHandled" />
+    <bpmn:sequenceFlow id="Flow_Exception_To_End" sourceRef="Task_RecordException" targetRef="EndEvent_ExceptionRecorded" />
+    <bpmn:userTask id="Task_RecordPayment" name="Record payment and confirm the appointment">
+      <bpmn:documentation>BR-19：支付成功后登记 PSP 交易号与金额，并确认预约（只有支付成功才确认预约）。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p12-record-payment" />
+        <zeebe:assignmentDefinition candidateGroups="finance-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Status_Success</bpmn:incoming>
+      <bpmn:outgoing>Flow_Record_To_Notify</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_PaymentRetry" name="Retry / Cancel Payment">
+      <bpmn:documentation>External Worker：按调查结论向 PSP 发起重试或取消（BR-17）。Job type（topic）= payment-retry。写回 paymentRetryOutcome。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment-retry" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="psp" value="psp-payment-retry" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= caseId" target="caseId" />
+          <zeebe:input source="= pspReference" target="pspReference" />
+          <zeebe:input source="= failureForm.handling" target="handling" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Investigate_To_Retry</bpmn:incoming>
+      <bpmn:outgoing>Flow_Retry_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_InvestigateFailure" name="Survey payment failed">
+      <bpmn:documentation>BR-17：支付失败 / 被拒时登记失败原因与后续处理方式（重试 / 取消）。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p12-investigate-failure" />
+        <zeebe:assignmentDefinition candidateGroups="finance-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Status_Failed</bpmn:incoming>
+      <bpmn:outgoing>Flow_Investigate_To_Retry</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ConfirmFeeAndMethod" name="Confirm costs and payment method">
+      <bpmn:documentation>BR-16：财务团队确认应付金额与支付方式；流程变量只保存卡号后四位与支付令牌引用，不保存完整卡号（PCI 要求）。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p12-payment-method" />
+        <zeebe:assignmentDefinition candidateGroups="finance-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_Confirm</bpmn:incoming>
+      <bpmn:outgoing>Flow_Confirm_To_PaymentRequest</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_NotifyCareTeam" name="Notify the treatment appointment team">
+      <bpmn:documentation>Message：向治疗预约团队投递 CareTeamNotified（跨 Pool 消息）。Job type（topic）= notify-care-team。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-care-team" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="CareTeamNotified" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= caseId" target="caseId" />
+          <zeebe:input source="= pspReference" target="pspReference" />
+          <zeebe:input source="= paymentForm.amount" target="amount" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Record_To_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Notify_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:startEvent id="StartEvent_FundingSettled" name="Funding confirmed / Costs calculated">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p12-start-fee" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_Confirm</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_RecordException" name="Record error (duplicate / incomplete)">
+      <bpmn:documentation>BR-19：重复扣款、金额不符、PSP 回执不完整等情形单独记录并转人工跟进。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p12-record-exception" />
+        <zeebe:assignmentDefinition candidateGroups="finance-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Status_Exception</bpmn:incoming>
+      <bpmn:outgoing>Flow_Exception_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_ExceptionRecorded" name="An exception has been logged">
+      <bpmn:incoming>Flow_Exception_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="Throw_PaymentRequest" name="Call PSP payment">
+      <bpmn:documentation>Message：向外部 Pool（PSP）投递 PaymentRequested，启动 PSP 的流程实例。Job type = send-payment-request。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-payment-request" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="PaymentRequested" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Confirm_To_PaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>Flow_PaymentRequest_To_Catch</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_PaymentRequested" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="Catch_PaymentStatus" name="PSP receipt">
+      <bpmn:documentation>等待 PSP 回传 PaymentStatusReceived（关联键 = caseId）。回执变量（paymentStatus / pspReference / failureReason）随消息进入本实例，供 XOR 判定。</bpmn:documentation>
+      <bpmn:incoming>Flow_PaymentRequest_To_Catch</bpmn:incoming>
+      <bpmn:outgoing>Flow_PaymentRequest_To_Gateway</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_PaymentStatus" messageRef="Message_PaymentStatusReceived" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="EndEvent_RetryHandled" name="Retried / Canceled">
+      <bpmn:incoming>Flow_Retry_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_PaymentRecorded" name="Payment completed, appointment confirmed">
+      <bpmn:incoming>Flow_Notify_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_P12_PSPPool" name="选择 7：P12 支付处理（支付服务提供商 PSP）" isExecutable="true">
+    <bpmn:documentation>外部 Pool：收到支付请求后由 PSP 处理，并把支付状态回执回传医院。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P12_PSP">
+      <bpmn:lane id="Lane_PSP" name="Payment Service Provider (PSP)">
+        <bpmn:flowNodeRef>StartEvent_PSP_PaymentRequested</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PSP_ProcessPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_PSP_SendStatus</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_PSP_PaymentRequested" name="Payment request received">
+      <bpmn:outgoing>Flow_PSP_Start_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_PSP_Start" messageRef="Message_PaymentRequested" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_PSP_Start_To_Task" sourceRef="StartEvent_PSP_PaymentRequested" targetRef="Task_PSP_ProcessPayment" />
+    <bpmn:serviceTask id="Task_PSP_ProcessPayment" name="Handle payment">
+      <bpmn:documentation>External Worker：PSP 侧处理支付，写回 paymentStatus / pspReference / failureReason。Job type = psp-process-payment。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="psp-process-payment" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="psp" value="psp-payment-request" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PSP_Start_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_PSP_Task_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_PSP_Task_To_End" sourceRef="Task_PSP_ProcessPayment" targetRef="EndEvent_PSP_SendStatus" />
+    <bpmn:endEvent id="EndEvent_PSP_SendStatus" name="Send back payment status">
+      <bpmn:documentation>Message：投递 PaymentStatusReceived（关联键 = caseId）。Job type = psp-send-status。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="psp-send-status" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PSP_Task_To_End</bpmn:incoming>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_PSP_End" />
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_P12">
+    <bpmndi:BPMNPlane id="BPMNPlane_P12" bpmnElement="Collaboration_P12">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="140" y="60" width="1560" height="680" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Exchange_di" bpmnElement="Lane_Exchange" isHorizontal="true">
+        <dc:Bounds x="170" y="480" width="1530" height="260" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Finance_di" bpmnElement="Lane_Finance" isHorizontal="true">
+        <dc:Bounds x="170" y="60" width="1530" height="420" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_PaymentStatus_di" bpmnElement="Gateway_PaymentStatus" isMarkerVisible="true">
+        <dc:Bounds x="660" y="163" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="609" y="153" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RecordPayment_di" bpmnElement="Task_RecordPayment">
+        <dc:Bounds x="860" y="148" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PaymentRetry_di" bpmnElement="Task_PaymentRetry">
+        <dc:Bounds x="750" y="600" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InvestigateFailure_di" bpmnElement="Task_InvestigateFailure">
+        <dc:Bounds x="730" y="390" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ConfirmFeeAndMethod_di" bpmnElement="Task_ConfirmFeeAndMethod">
+        <dc:Bounds x="340" y="130" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyCareTeam_di" bpmnElement="Task_NotifyCareTeam">
+        <dc:Bounds x="1140" y="600" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_FundingSettled_di" bpmnElement="StartEvent_FundingSettled">
+        <dc:Bounds x="200" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="176" y="195" width="86" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RecordException_di" bpmnElement="Task_RecordException">
+        <dc:Bounds x="210" y="560" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_ExceptionRecorded_di" bpmnElement="EndEvent_ExceptionRecorded">
+        <dc:Bounds x="462" y="582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="438" y="625" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Throw_PaymentRequest_di" bpmnElement="Throw_PaymentRequest">
+        <dc:Bounds x="552" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="525" y="498" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Catch_PaymentStatus_di" bpmnElement="Catch_PaymentStatus">
+        <dc:Bounds x="632" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="621" y="498" width="59" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_RetryHandled_di" bpmnElement="EndEvent_RetryHandled">
+        <dc:Bounds x="1032" y="622" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1027" y="665" width="47" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_PaymentRecorded_di" bpmnElement="EndEvent_PaymentRecorded">
+        <dc:Bounds x="1322" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1310" y="123" width="61" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_Confirm_di" bpmnElement="Flow_Start_To_Confirm">
+        <di:waypoint x="236" y="170" />
+        <di:waypoint x="340" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Confirm_To_PaymentRequest_di" bpmnElement="Flow_Confirm_To_PaymentRequest">
+        <di:waypoint x="450" y="210" />
+        <di:waypoint x="450" y="540" />
+        <di:waypoint x="552" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PaymentRequest_To_Catch_di" bpmnElement="Flow_PaymentRequest_To_Catch">
+        <di:waypoint x="588" y="540" />
+        <di:waypoint x="632" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PaymentRequest_To_Gateway_di" bpmnElement="Flow_PaymentRequest_To_Gateway">
+        <di:waypoint x="668" y="540" />
+        <di:waypoint x="685" y="540" />
+        <di:waypoint x="685" y="213" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Status_Success_di" bpmnElement="Flow_Status_Success">
+        <di:waypoint x="685" y="163" />
+        <di:waypoint x="685" y="110" />
+        <di:waypoint x="960" y="110" />
+        <di:waypoint x="960" y="148" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="802" y="85" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Status_Failed_di" bpmnElement="Flow_Status_Failed">
+        <di:waypoint x="710" y="188" />
+        <di:waypoint x="830" y="188" />
+        <di:waypoint x="830" y="390" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="816" y="279" width="59" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Status_Exception_di" bpmnElement="Flow_Status_Exception">
+        <di:waypoint x="685" y="213" />
+        <di:waypoint x="685" y="280" />
+        <di:waypoint x="320" y="280" />
+        <di:waypoint x="320" y="560" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="476" y="255" width="54" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Record_To_Notify_di" bpmnElement="Flow_Record_To_Notify">
+        <di:waypoint x="960" y="228" />
+        <di:waypoint x="960" y="450" />
+        <di:waypoint x="1260" y="450" />
+        <di:waypoint x="1260" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Notify_To_End_di" bpmnElement="Flow_Notify_To_End">
+        <di:waypoint x="1340" y="610" />
+        <di:waypoint x="1340" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Investigate_To_Retry_di" bpmnElement="Flow_Investigate_To_Retry">
+        <di:waypoint x="850" y="470" />
+        <di:waypoint x="850" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Retry_To_End_di" bpmnElement="Flow_Retry_To_End">
+        <di:waypoint x="950" y="640" />
+        <di:waypoint x="1032" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Exception_To_End_di" bpmnElement="Flow_Exception_To_End">
+        <di:waypoint x="430" y="600" />
+        <di:waypoint x="462" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_PSP_di" bpmnElement="Participant_PSP" isHorizontal="true">
+        <dc:Bounds x="140" y="780" width="1560" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_PSP_di" bpmnElement="Lane_PSP" isHorizontal="true">
+        <dc:Bounds x="170" y="780" width="1530" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_PSP_PaymentRequested_di" bpmnElement="StartEvent_PSP_PaymentRequested">
+        <dc:Bounds x="300" y="852" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="277" y="895" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PSP_ProcessPayment_di" bpmnElement="Task_PSP_ProcessPayment">
+        <dc:Bounds x="430" y="830" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_PSP_SendStatus_di" bpmnElement="EndEvent_PSP_SendStatus">
+        <dc:Bounds x="760" y="852" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="741" y="895" width="75" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_PSP_Start_To_Task_di" bpmnElement="Flow_PSP_Start_To_Task">
+        <di:waypoint x="336" y="870" />
+        <di:waypoint x="430" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PSP_Task_To_End_di" bpmnElement="Flow_PSP_Task_To_End">
+        <di:waypoint x="650" y="870" />
+        <di:waypoint x="760" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_PaymentRequested_di" bpmnElement="MessageFlow_PaymentRequested">
+        <di:waypoint x="570" y="558" />
+        <di:waypoint x="570" y="760" />
+        <di:waypoint x="318" y="760" />
+        <di:waypoint x="318" y="852" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="536" y="672" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_PaymentStatus_di" bpmnElement="MessageFlow_PaymentStatus">
+        <di:waypoint x="778" y="852" />
+        <di:waypoint x="778" y="716" />
+        <di:waypoint x="670" y="716" />
+        <di:waypoint x="652" y="558" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="724" y="753" width="78" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,47 @@
+{
+  "components": [
+    {
+      "label": "PSP Transaction Number (BR-19)",
+      "type": "textfield",
+      "id": "Field_recordForm_pspReference",
+      "key": "recordForm.pspReference",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Amount Received",
+      "type": "textfield",
+      "id": "Field_recordForm_paidAmount",
+      "key": "recordForm.paidAmount",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Appointment confirmed (only confirmed after successful payment)",
+      "type": "checkbox",
+      "id": "Field_recordForm_appointmentConfirmed",
+      "key": "recordForm.appointmentConfirmed",
+      "defaultValue": true
+    },
+    {
+      "label": "Registrar (Finance Team)",
+      "type": "textfield",
+      "id": "Field_recordForm_recordedBy",
+      "key": "recordForm.recordedBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p12-record-payment",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}
