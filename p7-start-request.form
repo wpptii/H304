@@ -1,0 +1,34 @@
+{
+  "components": [
+    {
+      "label": "Appointment ID (also used as the correlation key for the Approval Result message)",
+      "type": "textfield",
+      "id": "Field_appointmentId",
+      "key": "appointmentId",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Patient name",
+      "type": "textfield",
+      "id": "Field_patientName",
+      "key": "patientName"
+    },
+    {
+      "label": "Treatment / appointment item",
+      "type": "textfield",
+      "id": "Field_treatmentPlan",
+      "key": "treatmentPlan"
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p7-start-request",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

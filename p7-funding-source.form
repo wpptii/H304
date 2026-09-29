@@ -1,0 +1,67 @@
+{
+  "components": [
+    {
+      "label": "Funding source (BR-14: choose one of four, required)",
+      "values": [
+        {
+          "label": "Hospital (in-house funding / charitable fund)",
+          "value": "hospital"
+        },
+        {
+          "label": "Insurance (insurance company / medical insurance)",
+          "value": "insurance"
+        },
+        {
+          "label": "Funding agency",
+          "value": "funding-agency"
+        },
+        {
+          "label": "Self-pay",
+          "value": "self-pay"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_fundingForm_fundingSource",
+      "key": "fundingForm.fundingSource",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Authorization reference (authorization number from insurance / funding agency)",
+      "type": "textfield",
+      "id": "Field_fundingForm_authorizationRef",
+      "key": "fundingForm.authorizationRef",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Approved amount",
+      "type": "textfield",
+      "id": "Field_fundingForm_approvedAmount",
+      "key": "fundingForm.approvedAmount",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Restrictions (scope / validity / exclusions)",
+      "type": "textarea",
+      "id": "Field_fundingForm_restrictions",
+      "key": "fundingForm.restrictions",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p7-funding-source",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

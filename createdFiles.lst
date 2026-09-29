@@ -1,7 +1,3 @@
-io\camunda\demo\process_order\CheckInventoryWorker.class
-io\camunda\demo\process_order\ShipItemsWorker.class
-io\camunda\demo\letter_process\LetterDispatchWorker.class
-io\camunda\demo\process_order\ChargePaymentWorker.class
-io\camunda\demo\letter_process\LetterProcessApplication.class
-io\camunda\demo\letter_process\NotifyCoordinatorWorker.class
-io\camunda\demo\process_order\ProcessOrderApplication.class
+io\camunda\demo\fundingdetermination\FundingApprovalMessageHandler.class
+io\camunda\demo\fundingdetermination\FundingValidationWorker.class
+io\camunda\demo\fundingdetermination\FundingDeterminationApplication.class
