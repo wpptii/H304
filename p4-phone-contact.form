@@ -1,0 +1,58 @@
+{
+  "components": [
+    {
+      "label": "Contact Result (BR-12: must be recorded)",
+      "values": [
+        {
+          "label": "connected",
+          "value": "connected"
+        },
+        {
+          "label": "no-answer",
+          "value": "no-answer"
+        },
+        {
+          "label": "reschedule",
+          "value": "reschedule"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_phoneContactForm_connected",
+      "key": "phoneContactForm.connected",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Number Dialed",
+      "type": "textfield",
+      "id": "Field_phoneContactForm_phoneNumber",
+      "key": "phoneContactForm.phoneNumber",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Was an interpreter used for this call?",
+      "type": "checkbox",
+      "id": "Field_phoneContactForm_interpreterUsed",
+      "key": "phoneContactForm.interpreterUsed",
+      "defaultValue": false
+    },
+    {
+      "label": "Call Remarks",
+      "type": "textarea",
+      "id": "Field_phoneContactForm_remarks",
+      "key": "phoneContactForm.remarks"
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p4-phone-contact",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

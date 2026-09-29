@@ -1,0 +1,54 @@
+{
+  "components": [
+    {
+      "label": "Appointment No. (business number for the \"Appointment Confirmed\" message)",
+      "type": "textfield",
+      "id": "Field_appointmentId",
+      "key": "appointmentId",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Appointment Date (ISO format, e.g. 2026-07-01)",
+      "type": "textfield",
+      "id": "Field_appointmentDate",
+      "key": "appointmentDate",
+      "description": "Must be in YYYY-MM-DD format, used to determine whether the appointment is within two weeks (BR-12)",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": true,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    {
+      "label": "Patient Name",
+      "type": "textfield",
+      "id": "Field_patientName",
+      "key": "patientName",
+      "layout": {
+        "row": "Row_3",
+        "columns": null
+      },
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p4-start-appointment",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

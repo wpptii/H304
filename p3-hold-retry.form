@@ -1,0 +1,72 @@
+{
+  "components": [
+    {
+      "label": "Scheduling Failure Reason (BR-10)",
+      "values": [
+        {
+          "label": "no-slot-available",
+          "value": "no-slot-available"
+        },
+        {
+          "label": "service-unavailable",
+          "value": "service-unavailable"
+        },
+        {
+          "label": "invalid-request",
+          "value": "invalid-request"
+        },
+        {
+          "label": "other",
+          "value": "other"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_retryForm_failureCategory",
+      "key": "retryForm.failureCategory",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Retry Plan (BR-13)",
+      "values": [
+        {
+          "label": "auto-retry",
+          "value": "auto-retry"
+        },
+        {
+          "label": "manual-call",
+          "value": "manual-call"
+        },
+        {
+          "label": "escalate-to-scheduler",
+          "value": "escalate-to-scheduler"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_retryForm_retryPlan",
+      "key": "retryForm.retryPlan",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Pending Notes (reason for keeping the appointment request \"Pending\" and follow-up plan)",
+      "type": "textarea",
+      "id": "Field_retryForm_holdNotes",
+      "key": "retryForm.holdNotes",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p3-hold-retry",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

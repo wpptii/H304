@@ -1,0 +1,62 @@
+{
+  "components": [
+    {
+      "label": "Notification Method (BR-11: choose the notification channel based on patient preference)",
+      "values": [
+        {
+          "label": "paper",
+          "value": "paper"
+        },
+        {
+          "label": "digital",
+          "value": "digital"
+        },
+        {
+          "label": "translation",
+          "value": "translation"
+        },
+        {
+          "label": "representative",
+          "value": "representative"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_notificationForm_method",
+      "key": "notificationForm.method",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Recipient Address / Mobile / Email / Authorized Representative Contact",
+      "type": "textfield",
+      "id": "Field_notificationForm_contactValue",
+      "key": "notificationForm.contactValue",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Notification Language (fill in when \"Translate Notification\" is selected)",
+      "type": "textfield",
+      "id": "Field_notificationForm_language",
+      "key": "notificationForm.language"
+    },
+    {
+      "label": "Remarks",
+      "type": "textarea",
+      "id": "Field_notificationForm_notes",
+      "key": "notificationForm.notes",
+      "description": "Special Assistance Needs, etc."
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p4-notification-method",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

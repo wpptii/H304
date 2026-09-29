@@ -1,0 +1,40 @@
+{
+  "components": [
+    {
+      "label": "Referral No. (new patient, accepted)",
+      "type": "textfield",
+      "id": "Field_referralId",
+      "key": "referralId",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Patient Name",
+      "type": "textfield",
+      "id": "Field_patientName",
+      "key": "patientName",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Intended Department",
+      "type": "textfield",
+      "id": "Field_referralDepartment",
+      "key": "referralDepartment",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p3-start-referral",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}
