@@ -1,0 +1,50 @@
+{
+  "components": [
+    {
+      "label": "Approval decision (BR-23: must be approved by the consultant physician)",
+      "values": [
+        {
+          "label": "Approve",
+          "value": "approve"
+        },
+        {
+          "label": "Send back for revision",
+          "value": "send-back"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_approvalForm_decision",
+      "key": "approvalForm.decision",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Approval opinion / return reason",
+      "type": "textarea",
+      "id": "Field_approvalForm_comments",
+      "key": "approvalForm.comments",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Approver (consultant physician)",
+      "type": "textfield",
+      "id": "Field_approvalForm_approvedBy",
+      "key": "approvalForm.approvedBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p10-approve-letter",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "components": [
+    {
+      "label": "Case / visit number (e.g. CASE-001)",
+      "type": "textfield",
+      "id": "Field_caseId",
+      "key": "caseId",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Treatment / appointment completion date (ISO, e.g. 2026-07-01)",
+      "type": "textfield",
+      "id": "Field_intakeDate",
+      "key": "intakeDate",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Patient name",
+      "type": "textfield",
+      "id": "Field_patientName",
+      "key": "patientName"
+    },
+    {
+      "label": "Clinic / department",
+      "type": "textfield",
+      "id": "Field_clinicName",
+      "key": "clinicName"
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p10-start-intake",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}
