@@ -1,0 +1,72 @@
+{
+  "components": [
+    {
+      "label": "Failure Reason Classification (BR-17)",
+      "values": [
+        {
+          "label": "Insufficient balance/limit",
+          "value": "insufficient-funds"
+        },
+        {
+          "label": "Declined by the card issuer",
+          "value": "declined-by-issuer"
+        },
+        {
+          "label": "Information doesn't match (card number/expiration date)",
+          "value": "data-mismatch"
+        },
+        {
+          "label": "PSP Timeout / Technical Glitch",
+          "value": "psp-error"
+        },
+        {
+          "label": "Other",
+          "value": "other"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_failureForm_failureCategory",
+      "key": "failureForm.failureCategory",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "How to deal with it",
+      "values": [
+        {
+          "label": "Retry Payment",
+          "value": "retry"
+        },
+        {
+          "label": "Cancel Payment",
+          "value": "cancel"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_failureForm_handling",
+      "key": "failureForm.handling",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Investigation Notes (Communication with Patient / PSP)",
+      "type": "textarea",
+      "id": "Field_failureForm_notes",
+      "key": "failureForm.notes",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p12-investigate-failure",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

@@ -1,0 +1,16 @@
+hpas\LetterWorkers.class
+hpas\NotificationWorkers.class
+hpas\PartnerPoolWorkers.class
+hpas\EnquiryWorkers.class
+hpas\MessagePublisher.class
+hpas\GpPoolWorkers.class
+hpas\PspPoolWorkers.class
+hpas\Support.class
+hpas\PaymentWorkers.class
+hpas\ClinicalReviewWorkers.class
+hpas\Flags.class
+hpas\WorkerApplication.class
+hpas\FundingWorkers.class
+hpas\SchedulingWorkers.class
+hpas\SchedulingPoolWorkers.class
+hpas\ReferralWorkers.class

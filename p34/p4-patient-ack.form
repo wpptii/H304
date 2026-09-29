@@ -1,0 +1,66 @@
+{
+  "components": [
+    {
+      "label": "Delivery Confirmation (Communication Service / Patient Side)",
+      "values": [
+        {
+          "label": "delivered",
+          "value": "delivered"
+        },
+        {
+          "label": "left-notice",
+          "value": "left-notice"
+        },
+        {
+          "label": "returned",
+          "value": "returned"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_patientAckForm_deliveryStatus",
+      "key": "patientAckForm.deliveryStatus",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Remarks (patient feedback, return reason, etc.)",
+      "type": "textarea",
+      "id": "Field_patientAckForm_ackNotes",
+      "key": "patientAckForm.ackNotes",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Logged by (Communication Service)",
+      "type": "textfield",
+      "id": "Field_patientAckForm_acknowledgedBy",
+      "key": "patientAckForm.acknowledgedBy",
+      "layout": {
+        "row": "Row_3",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p4-patient-ack",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

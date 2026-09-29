@@ -1,0 +1,67 @@
+{
+  "components": [
+    {
+      "label": "Exception Type (BR-19)",
+      "values": [
+        {
+          "label": "Duplicate charge",
+          "value": "duplicate-charge"
+        },
+        {
+          "label": "Amount doesn't match",
+          "value": "amount-mismatch"
+        },
+        {
+          "label": "PSP receipt is incomplete",
+          "value": "incomplete-response"
+        },
+        {
+          "label": "Other abnormalities",
+          "value": "other"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_exceptionForm_exceptionType",
+      "key": "exceptionForm.exceptionType",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Amount involved",
+      "type": "textfield",
+      "id": "Field_exceptionForm_affectedAmount",
+      "key": "exceptionForm.affectedAmount",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Exception explanation and follow-up (switch to human agent / refund / reconciliation)",
+      "type": "textarea",
+      "id": "Field_exceptionForm_exceptionNotes",
+      "key": "exceptionForm.exceptionNotes",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Recorder (Finance Team)",
+      "type": "textfield",
+      "id": "Field_exceptionForm_recordedBy",
+      "key": "exceptionForm.recordedBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p12-record-exception",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

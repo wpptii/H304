@@ -1,0 +1,66 @@
+{
+  "components": [
+    {
+      "label": "Handling Method (BR-31: Emergency Consultations First)",
+      "values": [
+        {
+          "label": "Patient to call back the same day",
+          "value": "call-back-today"
+        },
+        {
+          "label": "Schedule a clinical consultation",
+          "value": "arrange-appointment"
+        },
+        {
+          "label": "It's recommended to go to the emergency room",
+          "value": "advise-emergency"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_extClinicalForm_responseMode",
+      "key": "extClinicalForm.responseMode",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Key Points of Clinical Response",
+      "type": "textarea",
+      "id": "Field_extClinicalForm_clinicalNote",
+      "key": "extClinicalForm.clinicalNote",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Handler (CNS / Clinical)",
+      "type": "textfield",
+      "id": "Field_extClinicalForm_handledBy",
+      "key": "extClinicalForm.handledBy",
+      "layout": {
+        "row": "Row_3",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p8-clinical-action",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

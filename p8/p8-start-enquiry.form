@@ -1,0 +1,73 @@
+{
+  "components": [
+    {
+      "label": "Inquiry Number (e.g., ENQ-001)",
+      "type": "textfield",
+      "id": "Field_enquiryId",
+      "key": "enquiryId",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Consultation Type (BR-30: choose one of three, required)",
+      "values": [
+        {
+          "label": "Simple administration",
+          "value": "simple"
+        },
+        {
+          "label": "Finance",
+          "value": "finance"
+        },
+        {
+          "label": "clinical",
+          "value": "clinical"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_enquiryForm_inquiryType",
+      "key": "enquiryForm.inquiryType",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Consultation Details (BR-30: Must be recorded)",
+      "type": "textarea",
+      "id": "Field_enquiryForm_content",
+      "key": "enquiryForm.content",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Emergency keywords (BR-31: like 'chest pain', 'bleeding', 'difficulty breathing', separated by commas)",
+      "type": "textfield",
+      "id": "Field_enquiryForm_urgentKeywords",
+      "key": "enquiryForm.urgentKeywords",
+      "description": "For the enquiry-triage worker to judge urgency; leave blank if there are no obvious urgent signs"
+    },
+    {
+      "label": "Incoming call channels (phone / portal / email...)",
+      "type": "textfield",
+      "id": "Field_enquiryForm_channel",
+      "key": "enquiryForm.channel"
+    },
+    {
+      "label": "Patient Name",
+      "type": "textfield",
+      "id": "Field_patientName",
+      "key": "patientName"
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p8-start-enquiry",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

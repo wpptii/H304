@@ -1,0 +1,54 @@
+{
+  "components": [
+    {
+      "label": "Reason for delay (BR-27: 7-day target not met)",
+      "type": "textarea",
+      "id": "Field_escalationForm_escalationReason",
+      "key": "escalationForm.escalationReason",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Handling decision",
+      "values": [
+        {
+          "label": "Continue dispatch and note the delay",
+          "value": "dispatch-with-delay-note"
+        },
+        {
+          "label": "Re-run the approval process",
+          "value": "re-approve"
+        },
+        {
+          "label": "Withdraw this letter",
+          "value": "withdraw"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_escalationForm_decision",
+      "key": "escalationForm.decision",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Handler (administrative manager / management)",
+      "type": "textfield",
+      "id": "Field_escalationForm_escalatedBy",
+      "key": "escalationForm.escalatedBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p10-escalation",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

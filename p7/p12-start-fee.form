@@ -1,0 +1,43 @@
+{
+  "components": [
+    {
+      "label": "Case / Appointment Number (e.g., CASE-3001)",
+      "type": "textfield",
+      "id": "Field_caseId",
+      "key": "caseId",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Appointment number",
+      "type": "textfield",
+      "id": "Field_appointmentId",
+      "key": "appointmentId"
+    },
+    {
+      "label": "Calculated cost amount (BR-16)",
+      "type": "textfield",
+      "id": "Field_calculatedAmount",
+      "key": "calculatedAmount",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Confirmed funding sources (from the funding confirmation stage)",
+      "type": "textfield",
+      "id": "Field_fundingSource",
+      "key": "fundingSource"
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p12-start-fee",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

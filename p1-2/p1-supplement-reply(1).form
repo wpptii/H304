@@ -1,0 +1,67 @@
+{
+  "components": [
+    {
+      "label": "The materials received this time (itemized registration)",
+      "type": "textarea",
+      "id": "Field_supplementForm_providedItems",
+      "key": "supplementForm.providedItems",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Reply Channel",
+      "values": [
+        {
+          "label": "Email",
+          "value": "email"
+        },
+        {
+          "label": "Fax / Paper",
+          "value": "paper"
+        },
+        {
+          "label": "System integration",
+          "value": "interface"
+        },
+        {
+          "label": "Phone confirmation",
+          "value": "phone"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_supplementForm_replyChannel",
+      "key": "supplementForm.replyChannel",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Reception Registrar (Medical Secretary)",
+      "type": "textfield",
+      "id": "Field_supplementForm_receivedBy",
+      "key": "supplementForm.receivedBy",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Notes (items still missing, etc.)",
+      "type": "textarea",
+      "id": "Field_supplementForm_notes",
+      "key": "supplementForm.notes",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p1-supplement-reply",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

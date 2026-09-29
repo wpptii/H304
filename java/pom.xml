@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HPAS 作业 —— Camunda 8 Spring Boot Job Worker
+
+  技术栈与课程范例 (Messgae Example) 保持一致：
+    Spring Boot 父 POM 4.0.5 + Java 21+
+    io.camunda:camunda-spring-boot-starter:8.9.0   （新统一客户端 io.camunda.client.*）
+    @JobWorker / @Variable 注解风格
+
+  运行方式见 README.md（启动 Worker / 发消息 / 演示各分支）。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>hpas</groupId>
+    <artifactId>hpas-workers</artifactId>
+    <version>1.0.0</version>
+    <name>HPAS Camunda 8 Workers</name>
+    <description>HPAS 作业：8 个流程模型对应的 Job Worker（Camunda 8.9）</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <camunda.version>8.9.0</camunda.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.camunda</groupId>
+            <artifactId>camunda-spring-boot-starter</artifactId>
+            <version>${camunda.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

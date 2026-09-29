@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_P3_AppointmentScheduling" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:message id="Message_SchedulingRequested" name="SchedulingRequested" />
+  <bpmn:message id="Message_SchedulingResult" name="SchedulingResult">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=referralId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BookingConfirmed" name="BookingConfirmed" />
+  <bpmn:collaboration id="Collaboration_P3">
+    <bpmn:participant id="Participant_Hospital" name="Hospital Pool: Outpatient Appointment Team" processRef="Process_P3_AppointmentScheduling" />
+    <bpmn:participant id="Participant_SchedulingService" name="External Pool: Scheduling Service" processRef="Process_P3_SchedulingPool" />
+    <bpmn:messageFlow id="MessageFlow_SchedulingRequest" name="Scheduling Request" sourceRef="Throw_SchedulingRequest" targetRef="StartEvent_Scheduler_Requested" />
+    <bpmn:messageFlow id="MessageFlow_SchedulingResult" name="Scheduling Result" sourceRef="EndEvent_Scheduler_SendResult" targetRef="Catch_SchedulingResult" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_P3_AppointmentScheduling" name="Option 3: P3 New Patient Appointment Scheduling" isExecutable="true">
+    <bpmn:documentation>选择 3：P3 新患者预约排程。骨架：Start「收到已接受转诊」→ User Task「创建预约请求」Form → External Worker「调用排程服务」topic: scheduling-request → XOR 成功？否 → User Task「保持待定并记录重试」Form → Timer 重试 → 回到调用排程服务；是 → User Task「确认预约并写回」Form → Message「通知患者通知团队/通信服务」→ End。规则：BR-04、BR-10、BR-13。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P3">
+      <bpmn:lane id="Lane_BookingTeam" name="Outpatient Appointment Team">
+        <bpmn:flowNodeRef>Task_CreateRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_ReferralAccepted</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_SchedulingService" name="Cross-Pool Communication / Retry">
+        <bpmn:flowNodeRef>Catch_RetryTimer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyNotificationTeam</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmAndWriteBack</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_BookingConfirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SchedulingSucceeded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Catch_SchedulingResult</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Throw_SchedulingRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_HoldAndRetry</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_Start_To_CreateRequest" sourceRef="StartEvent_ReferralAccepted" targetRef="Task_CreateRequest" />
+    <bpmn:sequenceFlow id="Flow_CreateRequest_To_Scheduling" sourceRef="Task_CreateRequest" targetRef="Throw_SchedulingRequest" />
+    <bpmn:sequenceFlow id="Flow_Scheduling_To_Gateway" sourceRef="Catch_SchedulingResult" targetRef="Gateway_SchedulingSucceeded" />
+    <bpmn:sequenceFlow id="Flow_SchedulingSucceeded" name="yes" sourceRef="Gateway_SchedulingSucceeded" targetRef="Task_ConfirmAndWriteBack">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= scheduleStatus = "success"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_SchedulingFailed" name="No: Keep Pending and Retry" sourceRef="Gateway_SchedulingSucceeded" targetRef="Task_HoldAndRetry" />
+    <bpmn:sequenceFlow id="Flow_Hold_To_Timer" sourceRef="Task_HoldAndRetry" targetRef="Catch_RetryTimer" />
+    <bpmn:sequenceFlow id="Flow_Timer_To_Scheduling" name="Retry: return to Call Scheduling Service" sourceRef="Catch_RetryTimer" targetRef="Throw_SchedulingRequest" />
+    <bpmn:sequenceFlow id="Flow_Confirm_To_Notify" sourceRef="Task_ConfirmAndWriteBack" targetRef="Task_NotifyNotificationTeam" />
+    <bpmn:sequenceFlow id="Flow_Notify_To_End" sourceRef="Task_NotifyNotificationTeam" targetRef="EndEvent_BookingConfirmed" />
+    <bpmn:sequenceFlow id="Flow_Scheduling_To_Catch" sourceRef="Throw_SchedulingRequest" targetRef="Catch_SchedulingResult" />
+    <bpmn:intermediateCatchEvent id="Catch_RetryTimer" name="Retry Wait">
+      <bpmn:documentation>等待一段退避时间后重试调用排程服务（BR-13）。演示用 PT5S；生产建议改为 PT15M 或按排程服务约定配置。</bpmn:documentation>
+      <bpmn:incoming>Flow_Hold_To_Timer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Timer_To_Scheduling</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_Retry">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Task_CreateRequest" name="Create Appointment Request">
+      <bpmn:documentation>BR-04：门诊预约团队为已接受的新患者创建预约请求，登记科室、优先级、期望时间窗与转诊号。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p3-create-request" />
+        <zeebe:assignmentDefinition candidateGroups="appointment-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_CreateRequest</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateRequest_To_Scheduling</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:startEvent id="StartEvent_ReferralAccepted" name="Referral Received and Accepted">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p3-start-referral" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_CreateRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_NotifyNotificationTeam" name="Notify Patient – Notification Team / Communication Service">
+      <bpmn:documentation>Message：向患者通知团队 / 通信服务投递 BookingConfirmed（跨 Pool 消息）。Job type（topic）= notify-notification-team。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-notification-team" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="BookingConfirmed" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+          <zeebe:input source="= slotReference" target="slotReference" />
+          <zeebe:input source="= confirmForm.appointmentDateTime" target="appointmentDateTime" />
+          <zeebe:input source="= confirmForm.location" target="location" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Confirm_To_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Notify_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_ConfirmAndWriteBack" name="Confirm Appointment and Write Back">
+      <bpmn:documentation>BR-13：排程成功后确认预约并把结果写回病例 / 排程系统，登记预约时间与地点。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p3-confirm-booking" />
+        <zeebe:assignmentDefinition candidateGroups="appointment-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SchedulingSucceeded</bpmn:incoming>
+      <bpmn:outgoing>Flow_Confirm_To_Notify</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_BookingConfirmed" name="Appointment Scheduled and Notified">
+      <bpmn:incoming>Flow_Notify_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_SchedulingSucceeded" name="Scheduling successful?" default="Flow_SchedulingFailed">
+      <bpmn:incoming>Flow_Scheduling_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_SchedulingSucceeded</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SchedulingFailed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:intermediateCatchEvent id="Catch_SchedulingResult" name="Scheduling Result">
+      <bpmn:documentation>等待外部排程服务回传 SchedulingResult（关联键 = referralId）。回执变量（scheduleStatus / slotReference / failureReason）随消息进入本实例。</bpmn:documentation>
+      <bpmn:incoming>Flow_Scheduling_To_Catch</bpmn:incoming>
+      <bpmn:outgoing>Flow_Scheduling_To_Gateway</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_SchedulingResult" messageRef="Message_SchedulingResult" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateThrowEvent id="Throw_SchedulingRequest" name="Call Scheduling Service">
+      <bpmn:documentation>Message：向外部 Pool（排程服务）投递 SchedulingRequested，启动对方的流程实例。Job type = send-scheduling-request。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-scheduling-request" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="SchedulingRequested" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CreateRequest_To_Scheduling</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_To_Scheduling</bpmn:incoming>
+      <bpmn:outgoing>Flow_Scheduling_To_Catch</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_SchedulingRequested" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:userTask id="Task_HoldAndRetry" name="Keep Pending and Log Retry">
+      <bpmn:documentation>BR-10：排程失败时保持预约请求为「待定」，记录失败原因与重试计划，再由 Timer 触发重试。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p3-hold-retry" />
+        <zeebe:assignmentDefinition candidateGroups="appointment-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SchedulingFailed</bpmn:incoming>
+      <bpmn:outgoing>Flow_Hold_To_Timer</bpmn:outgoing>
+    </bpmn:userTask>
+  </bpmn:process>
+  <bpmn:process id="Process_P3_SchedulingPool" name="选择 3：P3 新患者预约排程（排程服务）" isExecutable="true">
+    <bpmn:documentation>外部 Pool：收到排程请求后由排程服务分配号源，并把结果回传医院。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P3_Scheduler">
+      <bpmn:lane id="Lane_Scheduler" name="Scheduling Service">
+        <bpmn:flowNodeRef>StartEvent_Scheduler_Requested</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Scheduler_ProcessRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Scheduler_SendResult</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Scheduler_Requested" name="Scheduling Request Received">
+      <bpmn:outgoing>Flow_Scheduler_Start_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Scheduler_Start" messageRef="Message_SchedulingRequested" />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_Scheduler_ProcessRequest" name="Allocate Slot">
+      <bpmn:documentation>External Worker：排程服务分配号源，写回 scheduleStatus / slotReference / failureReason。Job type = scheduler-process-request。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="scheduler-process-request" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="scheduler" value="external-scheduling-service" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Scheduler_Start_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_Scheduler_Task_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Scheduler_SendResult" name="Return Scheduling Result">
+      <bpmn:documentation>Message：投递 SchedulingResult（关联键 = referralId）。Job type = scheduler-send-result。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="scheduler-send-result" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Scheduler_Task_To_End</bpmn:incoming>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Scheduler_End" />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Scheduler_Start_To_Task" sourceRef="StartEvent_Scheduler_Requested" targetRef="Task_Scheduler_ProcessRequest" />
+    <bpmn:sequenceFlow id="Flow_Scheduler_Task_To_End" sourceRef="Task_Scheduler_ProcessRequest" targetRef="EndEvent_Scheduler_SendResult" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_P3">
+    <bpmndi:BPMNPlane id="BPMNPlane_P3" bpmnElement="Collaboration_P3">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="140" y="40" width="1400" height="680" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_SchedulingService_di" bpmnElement="Lane_SchedulingService" isHorizontal="true">
+        <dc:Bounds x="170" y="260" width="1370" height="440" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_BookingTeam_di" bpmnElement="Lane_BookingTeam" isHorizontal="true">
+        <dc:Bounds x="170" y="60" width="1370" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Catch_RetryTimer_di" bpmnElement="Catch_RetryTimer">
+        <dc:Bounds x="742" y="440" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="735" y="416" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreateRequest_di" bpmnElement="Task_CreateRequest">
+        <dc:Bounds x="560" y="110" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_ReferralAccepted_di" bpmnElement="StartEvent_ReferralAccepted">
+        <dc:Bounds x="222" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="196" y="175" width="89" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyNotificationTeam_di" bpmnElement="Task_NotifyNotificationTeam">
+        <dc:Bounds x="1260" y="430" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ConfirmAndWriteBack_di" bpmnElement="Task_ConfirmAndWriteBack">
+        <dc:Bounds x="1260" y="270" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_BookingConfirmed_di" bpmnElement="EndEvent_BookingConfirmed">
+        <dc:Bounds x="1342" y="622" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1323" y="665" width="74" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SchedulingSucceeded_di" bpmnElement="Gateway_SchedulingSucceeded" isMarkerVisible="true">
+        <dc:Bounds x="995" y="285" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="991" y="247.5" width="58" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Catch_SchedulingResult_di" bpmnElement="Catch_SchedulingResult">
+        <dc:Bounds x="792" y="292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="766" y="268" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Throw_SchedulingRequest_di" bpmnElement="Throw_SchedulingRequest">
+        <dc:Bounds x="512" y="292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="492" y="335" width="77" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HoldAndRetry_di" bpmnElement="Task_HoldAndRetry">
+        <dc:Bounds x="910" y="600" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_CreateRequest_di" bpmnElement="Flow_Start_To_CreateRequest">
+        <di:waypoint x="258" y="150" />
+        <di:waypoint x="560" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CreateRequest_To_Scheduling_di" bpmnElement="Flow_CreateRequest_To_Scheduling">
+        <di:waypoint x="670" y="190" />
+        <di:waypoint x="670" y="246" />
+        <di:waypoint x="530" y="246" />
+        <di:waypoint x="530" y="292" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Scheduling_To_Gateway_di" bpmnElement="Flow_Scheduling_To_Gateway">
+        <di:waypoint x="828" y="310" />
+        <di:waypoint x="995" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SchedulingSucceeded_di" bpmnElement="Flow_SchedulingSucceeded">
+        <di:waypoint x="1045" y="310" />
+        <di:waypoint x="1260" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1144" y="292" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SchedulingFailed_di" bpmnElement="Flow_SchedulingFailed">
+        <di:waypoint x="1020" y="335" />
+        <di:waypoint x="1020" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="960" y="516" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Hold_To_Timer_di" bpmnElement="Flow_Hold_To_Timer">
+        <di:waypoint x="910" y="640" />
+        <di:waypoint x="760" y="640" />
+        <di:waypoint x="760" y="476" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Timer_To_Scheduling_di" bpmnElement="Flow_Timer_To_Scheduling">
+        <di:waypoint x="742" y="458" />
+        <di:waypoint x="518" y="458" />
+        <di:waypoint x="518" y="323" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="584" y="380" width="77" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Confirm_To_Notify_di" bpmnElement="Flow_Confirm_To_Notify">
+        <di:waypoint x="1360" y="350" />
+        <di:waypoint x="1360" y="430" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Notify_To_End_di" bpmnElement="Flow_Notify_To_End">
+        <di:waypoint x="1360" y="510" />
+        <di:waypoint x="1360" y="622" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Scheduling_To_Catch_di" bpmnElement="Flow_Scheduling_To_Catch">
+        <di:waypoint x="548" y="310" />
+        <di:waypoint x="792" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_SchedulingService_di" bpmnElement="Participant_SchedulingService" isHorizontal="true">
+        <dc:Bounds x="140" y="830" width="1400" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Scheduler_di" bpmnElement="Lane_Scheduler" isHorizontal="true">
+        <dc:Bounds x="170" y="830" width="1370" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Scheduler_Requested_di" bpmnElement="StartEvent_Scheduler_Requested">
+        <dc:Bounds x="300" y="902" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="274" y="945" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Scheduler_ProcessRequest_di" bpmnElement="Task_Scheduler_ProcessRequest">
+        <dc:Bounds x="430" y="880" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Scheduler_SendResult_di" bpmnElement="EndEvent_Scheduler_SendResult">
+        <dc:Bounds x="760" y="902" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="734" y="945" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Scheduler_Start_To_Task_di" bpmnElement="Flow_Scheduler_Start_To_Task">
+        <di:waypoint x="336" y="920" />
+        <di:waypoint x="430" y="920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Scheduler_Task_To_End_di" bpmnElement="Flow_Scheduler_Task_To_End">
+        <di:waypoint x="650" y="920" />
+        <di:waypoint x="760" y="920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_SchedulingRequest_di" bpmnElement="MessageFlow_SchedulingRequest">
+        <di:waypoint x="542" y="323" />
+        <di:waypoint x="542" y="800" />
+        <di:waypoint x="318" y="800" />
+        <di:waypoint x="318" y="902" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="482" y="616" width="55" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_SchedulingResult_di" bpmnElement="MessageFlow_SchedulingResult">
+        <di:waypoint x="796" y="920" />
+        <di:waypoint x="1100" y="920" />
+        <di:waypoint x="1100" y="700" />
+        <di:waypoint x="810" y="700" />
+        <di:waypoint x="810" y="328" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1006" y="898" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

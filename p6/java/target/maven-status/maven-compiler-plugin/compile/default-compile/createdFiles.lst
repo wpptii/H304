@@ -1,0 +1,3 @@
+io\camunda\demo\fundingdetermination\FundingApprovalMessageHandler.class
+io\camunda\demo\fundingdetermination\FundingValidationWorker.class
+io\camunda\demo\fundingdetermination\FundingDeterminationApplication.class

@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_P10_LetterProcess" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.10.0">
+  <bpmn:message id="Message_EscalationToCoordinator" name="EscalationRaised" />
+  <bpmn:collaboration id="Collaboration_P10">
+    <bpmn:participant id="Participant_Hospital" name="Hospital Pool: Consultant Physicians / Medical Secretaries / Administrative Managers (Selection 5 · Outpatient Letter Preparation, Approval and Dispatch)" processRef="Process_P10_LetterProcess" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_P10_LetterProcess" name="Selection 5: Outpatient Letter Preparation, Approval and Dispatch" isExecutable="true">
+    <bpmn:documentation>Selection 5: Outpatient Letter Preparation, Approval and Dispatch. Skeleton: Start "Treatment / Appointment Completed" → User Task "Consultant Drafts Letter" Form → User Task "Consultant Approves Letter" Form → User Task "Medical Secretary Administrative Check" Form (does not evaluate clinical appropriateness) → External Worker "Dispatch Letter" topic: letter-dispatch → XOR Completed within 7 days? No → User Task "Escalate to Administrative Manager / Management" Form → Message Notify Pathway Coordinator → End; Yes → End. Rules: BR-23, BR-25, BR-27. Highlights: separation of duties, deadline, escalation, Message, External Worker.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P10">
+      <bpmn:lane id="Lane_Secretary" name="Medical Secretary">
+        <bpmn:flowNodeRef>Task_AdminCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DispatchLetter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_DispatchedOnTime</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Escalate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyCoordinator</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Escalated</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Consultant" name="Consultant Physician">
+        <bpmn:flowNodeRef>StartEvent_TreatmentCompleted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DraftLetter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ApproveLetter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Within7Days</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_TreatmentCompleted" name="Treatment / Appointment Completed">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p10-start-intake" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_Draft</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_DraftLetter" name="Consultant Drafts Letter">
+      <bpmn:documentation>BR-23: The outpatient letter is drafted by the consultant physician, recording the letter type and body. The drafter and approver must not be the same person at the same step (separation of duties).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p10-draft-letter" />
+        <zeebe:assignmentDefinition candidateGroups="consultants" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_Draft</bpmn:incoming>
+      <bpmn:outgoing>Flow_Draft_To_Approve</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ApproveLetter" name="Consultant Approves Letter">
+      <bpmn:documentation>BR-23: The letter must be approved by the consultant physician (approve / send back for revision); the approval opinion must be recorded.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p10-approve-letter" />
+        <zeebe:assignmentDefinition candidateGroups="consultants" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Draft_To_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve_To_Check</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_AdminCheck" name="Medical Secretary Administrative Check">
+      <bpmn:documentation>BR-25: The medical secretary only performs an administrative check (recipient information, format, completeness of attachments, de-identification of personal information) and does not evaluate clinical appropriateness. If the check fails, it is returned to the consultant for revision.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p10-admin-check" />
+        <zeebe:assignmentDefinition candidateGroups="medical-secretaries" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Approve_To_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_Check_To_Dispatch</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_DispatchLetter" name="Dispatch Letter">
+      <bpmn:documentation>External Worker: Dispatch the approved letter through the communication service (post / digital channel) and write back the "completed within 7 days" determination to the process variable dispatchedWithin7Days (BR-27 deadline target). Job type (topic) = letter-dispatch.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="letter-dispatch" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="dispatch" value="letter-dispatch-service" />
+          <zeebe:header key="deadlineDays" value="7" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= caseId" target="caseId" />
+          <zeebe:input source="= letterForm.letterType" target="letterType" />
+          <zeebe:input source="= letterForm.letterBody" target="letterBody" />
+          <zeebe:input source="= checksForm.addressee" target="addressee" />
+          <zeebe:input source="= intakeDate" target="intakeDate" />
+          <zeebe:input source="= letterDraftCompletedAt" target="draftCompletedAt" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Check_To_Dispatch</bpmn:incoming>
+      <bpmn:outgoing>Flow_Dispatch_To_Gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Within7Days" name="Completed within 7 days?" default="Flow_Within7Days">
+      <bpmn:incoming>Flow_Dispatch_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Within7Days</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Overdue</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_DispatchedOnTime" name="Dispatched on time">
+      <bpmn:incoming>Flow_Within7Days</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_Escalate" name="Escalate to Administrative Manager / Management">
+      <bpmn:documentation>BR-27: Escalate to the administrative manager / management when the 7-day target is exceeded, recording the reason for the delay and the handling decision.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p10-escalation" />
+        <zeebe:assignmentDefinition candidateGroups="admin-managers" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Overdue</bpmn:incoming>
+      <bpmn:outgoing>Flow_Escalate_To_Notify</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_NotifyCoordinator" name="Notify Pathway Coordinator">
+      <bpmn:documentation>Message: Deliver EscalationRaised to the pathway coordinator (cross-Pool message). Job type (topic) = notify-pathway-coordinator.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-pathway-coordinator" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="EscalationRaised" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= caseId" target="caseId" />
+          <zeebe:input source="= escalationForm.escalationReason" target="escalationReason" />
+          <zeebe:input source="= escalationForm.decision" target="escalationDecision" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Escalate_To_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Notify_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Escalated" name="Escalated and Coordinator Notified">
+      <bpmn:incoming>Flow_Notify_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_To_Draft" sourceRef="StartEvent_TreatmentCompleted" targetRef="Task_DraftLetter" />
+    <bpmn:sequenceFlow id="Flow_Draft_To_Approve" sourceRef="Task_DraftLetter" targetRef="Task_ApproveLetter" />
+    <bpmn:sequenceFlow id="Flow_Approve_To_Check" sourceRef="Task_ApproveLetter" targetRef="Task_AdminCheck" />
+    <bpmn:sequenceFlow id="Flow_Check_To_Dispatch" sourceRef="Task_AdminCheck" targetRef="Task_DispatchLetter" />
+    <bpmn:sequenceFlow id="Flow_Dispatch_To_Gateway" sourceRef="Task_DispatchLetter" targetRef="Gateway_Within7Days" />
+    <bpmn:sequenceFlow id="Flow_Within7Days" name="Yes" sourceRef="Gateway_Within7Days" targetRef="EndEvent_DispatchedOnTime" />
+    <bpmn:sequenceFlow id="Flow_Overdue" name="No: escalate when overdue" sourceRef="Gateway_Within7Days" targetRef="Task_Escalate">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= dispatchedWithin7Days = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Escalate_To_Notify" sourceRef="Task_Escalate" targetRef="Task_NotifyCoordinator" />
+    <bpmn:sequenceFlow id="Flow_Notify_To_End" sourceRef="Task_NotifyCoordinator" targetRef="EndEvent_Escalated" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_P10">
+    <bpmndi:BPMNPlane id="BPMNPlane_P10" bpmnElement="Collaboration_P10">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="180" y="60" width="1720" height="660" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Consultant_di" bpmnElement="Lane_Consultant" isHorizontal="true">
+        <dc:Bounds x="210" y="60" width="1690" height="260" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Secretary_di" bpmnElement="Lane_Secretary" isHorizontal="true">
+        <dc:Bounds x="210" y="320" width="1690" height="400" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_TreatmentCompleted_di" bpmnElement="StartEvent_TreatmentCompleted">
+        <dc:Bounds x="252" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="232" y="225" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DraftLetter_di" bpmnElement="Task_DraftLetter">
+        <dc:Bounds x="340" y="160" width="200" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ApproveLetter_di" bpmnElement="Task_ApproveLetter">
+        <dc:Bounds x="600" y="160" width="200" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AdminCheck_di" bpmnElement="Task_AdminCheck">
+        <dc:Bounds x="340" y="360" width="200" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DispatchLetter_di" bpmnElement="Task_DispatchLetter">
+        <dc:Bounds x="600" y="360" width="200" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Within7Days_di" bpmnElement="Gateway_Within7Days" isMarkerVisible="true">
+        <dc:Bounds x="880" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="850" y="150" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_DispatchedOnTime_di" bpmnElement="EndEvent_DispatchedOnTime">
+        <dc:Bounds x="1060" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1034" y="435" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Escalate_di" bpmnElement="Task_Escalate">
+        <dc:Bounds x="940" y="490" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyCoordinator_di" bpmnElement="Task_NotifyCoordinator">
+        <dc:Bounds x="1260" y="490" width="200" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Escalated_di" bpmnElement="EndEvent_Escalated">
+        <dc:Bounds x="1560" y="512" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1540" y="555" width="77" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_Draft_di" bpmnElement="Flow_Start_To_Draft">
+        <di:waypoint x="288" y="200" />
+        <di:waypoint x="340" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Draft_To_Approve_di" bpmnElement="Flow_Draft_To_Approve">
+        <di:waypoint x="540" y="200" />
+        <di:waypoint x="600" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approve_To_Check_di" bpmnElement="Flow_Approve_To_Check">
+        <di:waypoint x="700" y="240" />
+        <di:waypoint x="700" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Check_To_Dispatch_di" bpmnElement="Flow_Check_To_Dispatch">
+        <di:waypoint x="540" y="400" />
+        <di:waypoint x="600" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Dispatch_To_Gateway_di" bpmnElement="Flow_Dispatch_To_Gateway">
+        <di:waypoint x="800" y="400" />
+        <di:waypoint x="905" y="400" />
+        <di:waypoint x="905" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Within7Days_di" bpmnElement="Flow_Within7Days">
+        <di:waypoint x="930" y="200" />
+        <di:waypoint x="1078" y="200" />
+        <di:waypoint x="1078" y="382" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="999" y="175" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Overdue_di" bpmnElement="Flow_Overdue">
+        <di:waypoint x="920" y="210" />
+        <di:waypoint x="920" y="460" />
+        <di:waypoint x="1050" y="460" />
+        <di:waypoint x="1050" y="490" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="952" y="435" width="66" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Escalate_To_Notify_di" bpmnElement="Flow_Escalate_To_Notify">
+        <di:waypoint x="1160" y="530" />
+        <di:waypoint x="1260" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Notify_To_End_di" bpmnElement="Flow_Notify_To_End">
+        <di:waypoint x="1460" y="530" />
+        <di:waypoint x="1560" y="530" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

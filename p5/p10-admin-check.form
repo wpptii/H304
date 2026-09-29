@@ -1,0 +1,64 @@
+{
+  "components": [
+    {
+      "label": "Administrative check conclusion (BR-25: administrative check only, no clinical appropriateness evaluation)",
+      "values": [
+        {
+          "label": "Pass",
+          "value": "pass"
+        },
+        {
+          "label": "Return for completion",
+          "value": "return"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_checksForm_administrativeCheck",
+      "key": "checksForm.administrativeCheck",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Recipient information verified",
+      "type": "checkbox",
+      "id": "Field_checksForm_addresseeVerified",
+      "key": "checksForm.addresseeVerified",
+      "defaultValue": false
+    },
+    {
+      "label": "Format conforms to template requirements",
+      "type": "checkbox",
+      "id": "Field_checksForm_formatVerified",
+      "key": "checksForm.formatVerified",
+      "defaultValue": false
+    },
+    {
+      "label": "Recipient (name / organization)",
+      "type": "textfield",
+      "id": "Field_checksForm_addressee",
+      "key": "checksForm.addressee",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Check notes (issues found)",
+      "type": "textarea",
+      "id": "Field_checksForm_checkNotes",
+      "key": "checksForm.checkNotes",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p10-admin-check",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

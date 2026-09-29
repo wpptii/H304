@@ -1,0 +1,83 @@
+{
+  "components": [
+    {
+      "label": "Supplementary materials this time (itemized list)",
+      "type": "textarea",
+      "id": "Field_supplementForm_providedItems",
+      "key": "supplementForm.providedItems",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Reply Channel",
+      "values": [
+        {
+          "label": "System integration",
+          "value": "interface"
+        },
+        {
+          "label": "Email",
+          "value": "email"
+        },
+        {
+          "label": "Fax / Paper",
+          "value": "paper"
+        },
+        {
+          "label": "Phone confirmation",
+          "value": "phone"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_supplementForm_replyChannel",
+      "key": "supplementForm.replyChannel",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Respondent (GP / Other Hospital)",
+      "type": "textfield",
+      "id": "Field_supplementForm_repliedBy",
+      "key": "supplementForm.repliedBy",
+      "layout": {
+        "row": "Row_3",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Notes (items still missing, etc.)",
+      "type": "textarea",
+      "id": "Field_supplementForm_notes",
+      "key": "supplementForm.notes",
+      "layout": {
+        "row": "Row_4",
+        "columns": null
+      },
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p1-gp-supplement",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

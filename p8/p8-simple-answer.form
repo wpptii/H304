@@ -1,0 +1,48 @@
+{
+  "components": [
+    {
+      "label": "Response content (BR-32: Simple administrative matters are directly handled by the call handling team)",
+      "type": "textarea",
+      "id": "Field_answerForm_answer",
+      "key": "answerForm.answer",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "responder",
+      "values": [
+        {
+          "label": "Call Handling Team",
+          "value": "call-handling"
+        },
+        {
+          "label": "Other authorized personnel",
+          "value": "other"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_answerForm_answeredBy",
+      "key": "answerForm.answeredBy",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Has the patient's problem been resolved?",
+      "type": "checkbox",
+      "id": "Field_answerForm_resolved",
+      "key": "answerForm.resolved",
+      "defaultValue": true
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p8-simple-answer",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

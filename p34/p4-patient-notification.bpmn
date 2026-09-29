@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_P4_PatientNotification" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0">
+  <bpmn:message id="Message_AppointmentConfirmed" name="AppointmentConfirmed" />
+  <bpmn:message id="Message_PatientContactRecorded" name="PatientContactRecorded" />
+  <bpmn:collaboration id="Collaboration_P4">
+    <bpmn:participant id="Participant_Hospital" name="Hospital Pool: Outpatient Appointment Team" processRef="Process_P4_PatientNotification" />
+    <bpmn:participant id="Participant_Patient" name="External Pool: Communication Service / Patient" processRef="Process_P4_PatientPool" />
+    <bpmn:messageFlow id="MessageFlow_ContactRecorded" name="Contact Result Notification" sourceRef="EndEvent_PatientContacted" targetRef="StartEvent_Patient_ContactRecorded" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_P4_PatientNotification" name="P4 Patient Notification and Contact" isExecutable="true">
+    <bpmn:documentation>P4 患者通知与联系（Tasklist 可直接启动版）。启动：无类型启动事件 + 启动表单 p4-start-appointment（填预约号 / 预约日期，对应「预约已确认」这条入院消息的落地）→ User Task「选择通知方式」Form → External Worker「发送通知」topic: communication-send → XOR 通知是否发送成功？（否 → 重试）→ XOR 预约是否在两周内？（是 → User Task「电话联系并记录结果」Form → External Worker「记录联系尝试」topic: contact-log → Message「通知患者通知团队」→ End；否 → End）。规则：BR-11、BR-12。用户任务是 Camunda 用户任务（zeebe:userTask）+ 链接表单；外部 Worker 以 zeebe:taskDefinition type 声明。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P4">
+      <bpmn:lane id="Lane_Team" name="Outpatient Appointment Team">
+        <bpmn:flowNodeRef>Task_ChooseNotificationMethod</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_AppointmentConfirmed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_CommsService" name="Communication Service (External Worker)">
+        <bpmn:flowNodeRef>EndEvent_PatientContacted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_NoFurtherContact</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendNotification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LogContactAttempt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PhoneContact</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WithinTwoWeeks</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NotifySucceeded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_NotifyFailed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_Start_To_ChooseMethod" sourceRef="StartEvent_AppointmentConfirmed" targetRef="Task_ChooseNotificationMethod" />
+    <bpmn:sequenceFlow id="Flow_ChooseMethod_To_SendNotification" sourceRef="Task_ChooseNotificationMethod" targetRef="Task_SendNotification" />
+    <bpmn:sequenceFlow id="Flow_SendNotification_To_Gateway" sourceRef="Task_SendNotification" targetRef="Gateway_NotifySucceeded" />
+    <bpmn:sequenceFlow id="Flow_NotifySuccess" name="yes" sourceRef="Gateway_NotifySucceeded" targetRef="Gateway_WithinTwoWeeks">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= notifyStatus = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RetryNotification" name="No: Retry" sourceRef="Gateway_NotifySucceeded" targetRef="Task_SendNotification">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= notifyStatus = false and notifyAttempts &lt; 3</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_NotifyFailed" name="No: retries exhausted / result unknown" sourceRef="Gateway_NotifySucceeded" targetRef="EndEvent_NotifyFailed" />
+    <bpmn:sequenceFlow id="Flow_WithinTwoWeeks" name="Yes: phone contact required within two weeks" sourceRef="Gateway_WithinTwoWeeks" targetRef="Task_PhoneContact">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= appointmentDate != null and appointmentDate != "" and appointmentDate &lt;= string(today() + duration("P14D"))</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_NoFurtherContact" name="否：结束" sourceRef="Gateway_WithinTwoWeeks" targetRef="EndEvent_NoFurtherContact" />
+    <bpmn:sequenceFlow id="Flow_PhoneContact_To_LogContact" sourceRef="Task_PhoneContact" targetRef="Task_LogContactAttempt" />
+    <bpmn:sequenceFlow id="Flow_LogContact_To_End" sourceRef="Task_LogContactAttempt" targetRef="EndEvent_PatientContacted" />
+    <bpmn:endEvent id="EndEvent_PatientContacted" name="Contact Completed / Team Notified">
+      <bpmn:documentation>Message：向外部 Pool（通信服务 / 患者）投递 PatientContactRecorded。Job type = notify-confirm。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-confirm" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="PatientContactRecorded" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LogContact_To_End</bpmn:incoming>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_ContactRecorded" />
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_ChooseNotificationMethod" name="Select Notification Method">
+      <bpmn:documentation>BR-11：由门诊预约团队按患者偏好选择通知渠道（纸质 / 数字 / 翻译 / 授权代表）。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p4-notification-method" />
+        <zeebe:assignmentDefinition candidateGroups="appointment-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_ChooseMethod</bpmn:incoming>
+      <bpmn:outgoing>Flow_ChooseMethod_To_SendNotification</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_NoFurtherContact" name="No Further Contact Needed">
+      <bpmn:incoming>Flow_NoFurtherContact</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_SendNotification" name="Send Notification">
+      <bpmn:documentation>External Worker：按所选通知方式寄送 / 推送预约通知（BR-11）。Job type（topic）= communication-send。Worker 完成后写回 notifyStatus（true/false）；notifyAttempts 由 Worker 每次 +1，上限 3 次，超出后走「通知发送失败」结束事件。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="communication-send" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="dispatch" value="notification-dispatch" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= notificationForm.method" target="method" />
+          <zeebe:input source="= notificationForm.contactValue" target="contactValue" />
+          <zeebe:input source="= notificationForm.language" target="language" />
+          <zeebe:input source="= notificationForm.notes" target="notes" />
+          <zeebe:input source="= appointmentId" target="appointmentId" />
+          <zeebe:input source="= appointmentDate" target="appointmentDate" />
+          <zeebe:input source="= notifyAttempts" target="notifyAttempts" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ChooseMethod_To_SendNotification</bpmn:incoming>
+      <bpmn:incoming>Flow_RetryNotification</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendNotification_To_Gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_LogContactAttempt" name="Log Contact Attempt">
+      <bpmn:documentation>External Worker：把电话联系结果写入患者联系记录（BR-12）。Job type（topic）= contact-log。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="contact-log" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="record" value="patient-contact-log" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= phoneContactForm.connected" target="contactResult" />
+          <zeebe:input source="= phoneContactForm.phoneNumber" target="phoneNumber" />
+          <zeebe:input source="= phoneContactForm.interpreterUsed" target="interpreterUsed" />
+          <zeebe:input source="= phoneContactForm.remarks" target="remarks" />
+          <zeebe:input source="= appointmentId" target="appointmentId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PhoneContact_To_LogContact</bpmn:incoming>
+      <bpmn:outgoing>Flow_LogContact_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_PhoneContact" name="Call patient and record the result">
+      <bpmn:documentation>BR-12：预约前两周内须电话联系患者，并记录联系结果（已接通 / 未接通 / 要求改期）。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p4-phone-contact" />
+        <zeebe:assignmentDefinition candidateGroups="appointment-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_WithinTwoWeeks</bpmn:incoming>
+      <bpmn:outgoing>Flow_PhoneContact_To_LogContact</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_WithinTwoWeeks" name="Is the appointment within two weeks?" default="Flow_NoFurtherContact">
+      <bpmn:incoming>Flow_NotifySuccess</bpmn:incoming>
+      <bpmn:outgoing>Flow_WithinTwoWeeks</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NoFurtherContact</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_NotifySucceeded" name="Notification sent successfully?" default="Flow_NotifyFailed">
+      <bpmn:incoming>Flow_SendNotification_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotifySuccess</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RetryNotification</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NotifyFailed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_NotifyFailed" name="Notification Failed">
+      <bpmn:incoming>Flow_NotifyFailed</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="StartEvent_AppointmentConfirmed" name="Appointment Confirmed">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p4-start-appointment" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_ChooseMethod</bpmn:outgoing>
+    </bpmn:startEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_P4_PatientPool" name="P4 患者通知与联系（通信服务 / 患者）" isExecutable="true">
+    <bpmn:documentation>外部 Pool：收到医院的联系结果通知后，由通信服务 / 患者侧确认送达与知悉。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P4_Patient">
+      <bpmn:lane id="Lane_Patient" name="Communication Service / Patient">
+        <bpmn:flowNodeRef>StartEvent_Patient_ContactRecorded</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Patient_Acknowledge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Patient_Done</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Patient_ContactRecorded" name="Contact Result Notification Received">
+      <bpmn:outgoing>Flow_Patient_Start_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Patient_Start" messageRef="Message_PatientContactRecorded" />
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_Patient_Acknowledge" name="Confirm Delivery / Acknowledgment">
+      <bpmn:documentation>外部侧（通信服务 / 患者）确认已收到联系结果通知并登记知悉情况。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p4-patient-ack" />
+        <zeebe:assignmentDefinition candidateGroups="communication-service" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Patient_Start_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_Patient_Task_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_Patient_Done" name="Confirmed">
+      <bpmn:incoming>Flow_Patient_Task_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Patient_Start_To_Task" sourceRef="StartEvent_Patient_ContactRecorded" targetRef="Task_Patient_Acknowledge" />
+    <bpmn:sequenceFlow id="Flow_Patient_Task_To_End" sourceRef="Task_Patient_Acknowledge" targetRef="EndEvent_Patient_Done" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_P4">
+    <bpmndi:BPMNPlane id="BPMNPlane_P4" bpmnElement="Collaboration_P4">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="140" y="80" width="1760" height="700" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_CommsService_di" bpmnElement="Lane_CommsService" isHorizontal="true">
+        <dc:Bounds x="170" y="320" width="1730" height="460" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Team_di" bpmnElement="Lane_Team" isHorizontal="true">
+        <dc:Bounds x="170" y="80" width="1730" height="240" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_PatientContacted_di" bpmnElement="EndEvent_PatientContacted">
+        <dc:Bounds x="1810" y="392" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1783" y="341.5" width="90" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ChooseNotificationMethod_di" bpmnElement="Task_ChooseNotificationMethod">
+        <dc:Bounds x="300" y="160" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_NoFurtherContact_di" bpmnElement="EndEvent_NoFurtherContact">
+        <dc:Bounds x="1702" y="712" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1681" y="753" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendNotification_di" bpmnElement="Task_SendNotification">
+        <dc:Bounds x="260" y="350" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LogContactAttempt_di" bpmnElement="Task_LogContactAttempt">
+        <dc:Bounds x="1610" y="610" width="180" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PhoneContact_di" bpmnElement="Task_PhoneContact">
+        <dc:Bounds x="1280" y="610" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WithinTwoWeeks_di" bpmnElement="Gateway_WithinTwoWeeks" isMarkerVisible="true">
+        <dc:Bounds x="995" y="625" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="905" y="627" width="89" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NotifySucceeded_di" bpmnElement="Gateway_NotifySucceeded" isMarkerVisible="true">
+        <dc:Bounds x="995" y="405" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="980" y="464.5" width="79" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_NotifyFailed_di" bpmnElement="EndEvent_NotifyFailed">
+        <dc:Bounds x="1422" y="412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1396" y="453" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_AppointmentConfirmed_di" bpmnElement="StartEvent_AppointmentConfirmed">
+        <dc:Bounds x="222" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="210" y="225" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_ChooseMethod_di" bpmnElement="Flow_Start_To_ChooseMethod">
+        <di:waypoint x="258" y="200" />
+        <di:waypoint x="300" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ChooseMethod_To_SendNotification_di" bpmnElement="Flow_ChooseMethod_To_SendNotification">
+        <di:waypoint x="450" y="240" />
+        <di:waypoint x="450" y="285" />
+        <di:waypoint x="370" y="285" />
+        <di:waypoint x="370" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SendNotification_To_Gateway_di" bpmnElement="Flow_SendNotification_To_Gateway">
+        <di:waypoint x="460" y="380" />
+        <di:waypoint x="1020" y="380" />
+        <di:waypoint x="1020" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NotifySuccess_di" bpmnElement="Flow_NotifySuccess">
+        <di:waypoint x="1020" y="455" />
+        <di:waypoint x="1020" y="625" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1038" y="552" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RetryNotification_di" bpmnElement="Flow_RetryNotification">
+        <di:waypoint x="995" y="430" />
+        <di:waypoint x="460" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="712" y="405" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NotifyFailed_di" bpmnElement="Flow_NotifyFailed">
+        <di:waypoint x="1045" y="430" />
+        <di:waypoint x="1422" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1193" y="392" width="74" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WithinTwoWeeks_di" bpmnElement="Flow_WithinTwoWeeks">
+        <di:waypoint x="1045" y="650" />
+        <di:waypoint x="1280" y="650" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1099" y="627" width="83" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NoFurtherContact_di" bpmnElement="Flow_NoFurtherContact">
+        <di:waypoint x="1020" y="675" />
+        <di:waypoint x="1020" y="730" />
+        <di:waypoint x="1702" y="730" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1264" y="703" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PhoneContact_To_LogContact_di" bpmnElement="Flow_PhoneContact_To_LogContact">
+        <di:waypoint x="1500" y="650" />
+        <di:waypoint x="1610" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_LogContact_To_End_di" bpmnElement="Flow_LogContact_To_End">
+        <di:waypoint x="1700" y="610" />
+        <di:waypoint x="1700" y="410" />
+        <di:waypoint x="1810" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_Patient_di" bpmnElement="Participant_Patient" isHorizontal="true">
+        <dc:Bounds x="160" y="1040" width="1760" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Patient_di" bpmnElement="Lane_Patient" isHorizontal="true">
+        <dc:Bounds x="190" y="1040" width="1730" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Patient_ContactRecorded_di" bpmnElement="StartEvent_Patient_ContactRecorded">
+        <dc:Bounds x="320" y="1122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="302" y="1165" width="73" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Patient_Acknowledge_di" bpmnElement="Task_Patient_Acknowledge">
+        <dc:Bounds x="450" y="1100" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Patient_Done_di" bpmnElement="EndEvent_Patient_Done">
+        <dc:Bounds x="780" y="1122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="773" y="1165" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Patient_Start_To_Task_di" bpmnElement="Flow_Patient_Start_To_Task">
+        <di:waypoint x="356" y="1140" />
+        <di:waypoint x="450" y="1140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Patient_Task_To_End_di" bpmnElement="Flow_Patient_Task_To_End">
+        <di:waypoint x="670" y="1140" />
+        <di:waypoint x="780" y="1140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ContactRecorded_di" bpmnElement="MessageFlow_ContactRecorded">
+        <di:waypoint x="1828" y="428" />
+        <di:waypoint x="1828" y="910" />
+        <di:waypoint x="338" y="910" />
+        <di:waypoint x="338" y="1122" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1032" y="866" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

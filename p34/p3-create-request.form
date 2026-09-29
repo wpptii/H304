@@ -1,0 +1,86 @@
+{
+  "components": [
+    {
+      "label": "Department (BR-04)",
+      "type": "textfield",
+      "id": "Field_requestForm_department",
+      "key": "requestForm.department",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Priority (BR-04)",
+      "values": [
+        {
+          "label": "routine",
+          "value": "routine"
+        },
+        {
+          "label": "priority",
+          "value": "priority"
+        },
+        {
+          "label": "urgent",
+          "value": "urgent"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_requestForm_priority",
+      "key": "requestForm.priority",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Preferred Time Window (e.g. 2026-07-01 AM)",
+      "type": "textfield",
+      "id": "Field_requestForm_preferredWindow",
+      "key": "requestForm.preferredWindow",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Appointment Type",
+      "values": [
+        {
+          "label": "first-visit",
+          "value": "first-visit"
+        },
+        {
+          "label": "follow-up",
+          "value": "follow-up"
+        },
+        {
+          "label": "procedure",
+          "value": "procedure"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_requestForm_appointmentType",
+      "key": "requestForm.appointmentType",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Remarks (special needs, mobility issues, interpreter, etc.)",
+      "type": "textarea",
+      "id": "Field_requestForm_notes",
+      "key": "requestForm.notes",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p3-create-request",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

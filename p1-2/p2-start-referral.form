@@ -1,0 +1,34 @@
+{
+  "components": [
+    {
+      "label": "Referral application number (also serves as the reference key for the 'waiting for additional documents' message)",
+      "type": "textfield",
+      "id": "Field_referralId",
+      "key": "referralId",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Patient Name",
+      "type": "textfield",
+      "id": "Field_patientName",
+      "key": "patientName"
+    },
+    {
+      "label": "Referral Source (GP / Other Organization)",
+      "type": "textfield",
+      "id": "Field_referralSource",
+      "key": "referralSource"
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p2-start-referral",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

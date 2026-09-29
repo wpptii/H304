@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_P1_ReferralIntake" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:message id="Message_SupplementRequested" name="ReferralSupplementRequested" />
+  <bpmn:message id="Message_SupplementReceived" name="ReferralSupplementReceived">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=referralId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:collaboration id="Collaboration_P1">
+    <bpmn:extensionElements />
+    <bpmn:participant id="Participant_Hospital" name="Hospital" processRef="Process_P1_ReferralIntake" />
+    <bpmn:participant id="Participant_GP" name="GP / Other Hospitals" processRef="Process_P1_GPPool" />
+    <bpmn:messageFlow id="MessageFlow_RequestSupplement" name="Request for additional documents" sourceRef="Throw_RequestSupplement" targetRef="StartEvent_GP_SupplementRequested" />
+    <bpmn:messageFlow id="MessageFlow_SupplementReply" name="Supplementary response" sourceRef="EndEvent_GP_SendSupplement" targetRef="Catch_SupplementReply" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_P1_ReferralIntake" name="P1 Referral Reception and Integrity Check (Hospital)" isExecutable="true">
+    <bpmn:documentation>选择 1：P1 转诊接收与完整性核查。Start → User Task「登记转诊」Form → External Worker「检查材料完整性」topic: referral-completeness-check → XOR 是否完整？否 → 消息抛出「请求补件」给外部 Pool（GP / 其他医院）→ 消息捕获「补件回复」→ 回到完整性检查；是 → User Task「确认移交临床审核」Form → External Worker 发送移交通知 → End。规则：BR-01 医疗秘书不得临床评估；BR-02 完整性后转顾问医师。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P1">
+      <bpmn:lane id="Lane_System" name="System Check">
+        <bpmn:flowNodeRef>Task_CompletenessCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Throw_RequestSupplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Catch_SupplementReply</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Secretary" name="Medical Secretary">
+        <bpmn:flowNodeRef>Task_RegisterReferral</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Complete</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TransferToClinical</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConfirmTransfer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_HandedOver</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_ReferralArrived</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:userTask id="Task_RegisterReferral" name="Register and refer">
+      <bpmn:documentation>BR-01：医疗秘书登记转诊来源、患者信息与随附材料清单，只做行政登记，不进行临床评估。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p1-register-referral" />
+        <zeebe:assignmentDefinition candidateGroups="medical-secretaries" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_Register</bpmn:incoming>
+      <bpmn:outgoing>Flow_Register_To_Check</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_CompletenessCheck" name="Check if the materials are complete">
+      <bpmn:documentation>External Worker：自动检查附件与必填字段是否齐全，写回 isComplete 与 missingItems。Job type（topic）= referral-completeness-check。BR-02：完整性通过后才移交顾问医师。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="referral-completeness-check" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="check" value="referral-completeness-rules" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+          <zeebe:input source="= registerForm.referralSource" target="referralSource" />
+          <zeebe:input source="= registerForm.attachments" target="attachments" />
+          <zeebe:input source="= registerForm.missingMaterials" target="missingMaterials" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Register_To_Check</bpmn:incoming>
+      <bpmn:incoming>Flow_Supplement_To_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_Check_To_Gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Complete" name="Is it complete？" default="Flow_Incomplete">
+      <bpmn:incoming>Flow_Check_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Complete</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Incomplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:intermediateThrowEvent id="Throw_RequestSupplement" name="Request for additional documents">
+      <bpmn:documentation>Message：向外部 Pool（GP / 其他医院）投递 ReferralSupplementRequested。Job type = send-supplement-request。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-supplement-request" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="ReferralSupplementRequested" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Incomplete</bpmn:incoming>
+      <bpmn:outgoing>Flow_Throw_To_Catch</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_SupplementRequested" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateCatchEvent id="Catch_SupplementReply" name="Supplementary response">
+      <bpmn:documentation>等待外部 Pool 回传 ReferralSupplementReceived（关联键 = referralId，定义在 bpmn:message 元素上）。收到后回到「检查材料完整性」重新核查。</bpmn:documentation>
+      <bpmn:incoming>Flow_Throw_To_Catch</bpmn:incoming>
+      <bpmn:outgoing>Flow_Supplement_To_Check</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_SupplementReceived" messageRef="Message_SupplementReceived" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Task_TransferToClinical" name="Confirm handover for clinical review">
+      <bpmn:documentation>BR-02：材料完整后由医疗秘书登记并移交给顾问医师做临床审核；秘书不评估临床适宜性。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p1-transfer-clinical" />
+        <zeebe:assignmentDefinition candidateGroups="medical-secretaries" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Complete</bpmn:incoming>
+      <bpmn:outgoing>Flow_Transfer_To_Confirm</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_ConfirmTransfer" name="Send relocation notice">
+      <bpmn:documentation>External Worker：向顾问医师队列发出「已移交临床审核」通知并记录移交时间（BR-02）。Job type（topic）= notify-clinical-review。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-clinical-review" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+          <zeebe:input source="= transferForm.handedOverTo" target="handedOverTo" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Transfer_To_Confirm</bpmn:incoming>
+      <bpmn:outgoing>Flow_Confirm_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_HandedOver" name="Already handed over for clinical review">
+      <bpmn:incoming>Flow_Confirm_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_To_Register" sourceRef="StartEvent_ReferralArrived" targetRef="Task_RegisterReferral" />
+    <bpmn:sequenceFlow id="Flow_Register_To_Check" sourceRef="Task_RegisterReferral" targetRef="Task_CompletenessCheck" />
+    <bpmn:sequenceFlow id="Flow_Supplement_To_Check" name="Additional documents received: rechecking" sourceRef="Catch_SupplementReply" targetRef="Task_CompletenessCheck" />
+    <bpmn:sequenceFlow id="Flow_Check_To_Gateway" sourceRef="Task_CompletenessCheck" targetRef="Gateway_Complete" />
+    <bpmn:sequenceFlow id="Flow_Complete" name="ye&#39;s" sourceRef="Gateway_Complete" targetRef="Task_TransferToClinical">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= isComplete = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Incomplete" name="No: Request for additional documents" sourceRef="Gateway_Complete" targetRef="Throw_RequestSupplement" />
+    <bpmn:sequenceFlow id="Flow_Throw_To_Catch" sourceRef="Throw_RequestSupplement" targetRef="Catch_SupplementReply" />
+    <bpmn:sequenceFlow id="Flow_Transfer_To_Confirm" sourceRef="Task_TransferToClinical" targetRef="Task_ConfirmTransfer" />
+    <bpmn:sequenceFlow id="Flow_Confirm_To_End" sourceRef="Task_ConfirmTransfer" targetRef="EndEvent_HandedOver" />
+    <bpmn:startEvent id="StartEvent_ReferralArrived" name="Referral Arrival">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p1-start-referral" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_Register</bpmn:outgoing>
+    </bpmn:startEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_P1_GPPool" name="P1 Referral Reception and Integrity Check (Hospital)" isExecutable="true">
+    <bpmn:documentation>外部 Pool：收到医院的补件请求后，由 GP / 其他医院补充材料，并把材料回传给医院（消息 ReferralSupplementReceived）。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P1_GP">
+      <bpmn:lane id="Lane_GP" name="GP / Other Hospitals">
+        <bpmn:flowNodeRef>StartEvent_GP_SupplementRequested</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_GP_ProvideSupplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_GP_SendSupplement</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_GP_SupplementRequested" name="Received a request for additional documents">
+      <bpmn:outgoing>Flow_GP_Start_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_GP_Start" messageRef="Message_SupplementRequested" />
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_GP_ProvideSupplement" name="Supplementary materials">
+      <bpmn:documentation>外部机构补齐医院要求的材料，登记补充项目与回复渠道。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p1-gp-supplement" />
+        <zeebe:assignmentDefinition candidateGroups="gp-practices" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GP_Start_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_GP_Task_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_GP_SendSupplement" name="Send back additional materials">
+      <bpmn:documentation>Message：投递 ReferralSupplementReceived（关联键 = referralId）。Job type = gp-send-supplement。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="gp-send-supplement" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GP_Task_To_End</bpmn:incoming>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_GP_End" />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_GP_Start_To_Task" sourceRef="StartEvent_GP_SupplementRequested" targetRef="Task_GP_ProvideSupplement" />
+    <bpmn:sequenceFlow id="Flow_GP_Task_To_End" sourceRef="Task_GP_ProvideSupplement" targetRef="EndEvent_GP_SendSupplement" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_P1">
+    <bpmndi:BPMNPlane id="BPMNPlane_P1" bpmnElement="Collaboration_P1">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="140" y="80" width="1440" height="600" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Secretary_di" bpmnElement="Lane_Secretary" isHorizontal="true">
+        <dc:Bounds x="170" y="80" width="1410" height="340" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_System_di" bpmnElement="Lane_System" isHorizontal="true">
+        <dc:Bounds x="170" y="420" width="1410" height="260" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RegisterReferral_di" bpmnElement="Task_RegisterReferral">
+        <dc:Bounds x="300" y="230" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CompletenessCheck_di" bpmnElement="Task_CompletenessCheck">
+        <dc:Bounds x="300" y="500" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Complete_di" bpmnElement="Gateway_Complete" isMarkerVisible="true">
+        <dc:Bounds x="620" y="245" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="610" y="220" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Throw_RequestSupplement_di" bpmnElement="Throw_RequestSupplement">
+        <dc:Bounds x="760" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="750" y="480" width="57" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Catch_SupplementReply_di" bpmnElement="Catch_SupplementReply">
+        <dc:Bounds x="1000" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1043" y="533" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransferToClinical_di" bpmnElement="Task_TransferToClinical">
+        <dc:Bounds x="820" y="230" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ConfirmTransfer_di" bpmnElement="Task_ConfirmTransfer">
+        <dc:Bounds x="1080" y="230" width="180" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_HandedOver_di" bpmnElement="EndEvent_HandedOver">
+        <dc:Bounds x="1320" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1300" y="295" width="78" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_ReferralArrived_di" bpmnElement="StartEvent_ReferralArrived">
+        <dc:Bounds x="222" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="203" y="295" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_Register_di" bpmnElement="Flow_Start_To_Register">
+        <di:waypoint x="258" y="270" />
+        <di:waypoint x="300" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Register_To_Check_di" bpmnElement="Flow_Register_To_Check">
+        <di:waypoint x="410" y="310" />
+        <di:waypoint x="410" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Supplement_To_Check_di" bpmnElement="Flow_Supplement_To_Check">
+        <di:waypoint x="1018" y="522" />
+        <di:waypoint x="1018" y="510" />
+        <di:waypoint x="1120" y="510" />
+        <di:waypoint x="1120" y="640" />
+        <di:waypoint x="410" y="640" />
+        <di:waypoint x="410" y="580" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="943" y="583" width="54" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Check_To_Gateway_di" bpmnElement="Flow_Check_To_Gateway">
+        <di:waypoint x="520" y="540" />
+        <di:waypoint x="600" y="540" />
+        <di:waypoint x="600" y="270" />
+        <di:waypoint x="620" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Complete_di" bpmnElement="Flow_Complete">
+        <di:waypoint x="670" y="270" />
+        <di:waypoint x="820" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="710" y="253" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Incomplete_di" bpmnElement="Flow_Incomplete">
+        <di:waypoint x="645" y="295" />
+        <di:waypoint x="645" y="540" />
+        <di:waypoint x="760" y="540" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="651" y="330" width="78" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Throw_To_Catch_di" bpmnElement="Flow_Throw_To_Catch">
+        <di:waypoint x="796" y="540" />
+        <di:waypoint x="1000" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Transfer_To_Confirm_di" bpmnElement="Flow_Transfer_To_Confirm">
+        <di:waypoint x="1020" y="270" />
+        <di:waypoint x="1080" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Confirm_To_End_di" bpmnElement="Flow_Confirm_To_End">
+        <di:waypoint x="1260" y="270" />
+        <di:waypoint x="1320" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_GP_di" bpmnElement="Participant_GP" isHorizontal="true">
+        <dc:Bounds x="140" y="700" width="1440" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_GP_di" bpmnElement="Lane_GP" isHorizontal="true">
+        <dc:Bounds x="170" y="700" width="1410" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_GP_SupplementRequested_di" bpmnElement="StartEvent_GP_SupplementRequested">
+        <dc:Bounds x="300" y="780" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="290" y="823" width="56" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GP_ProvideSupplement_di" bpmnElement="Task_GP_ProvideSupplement">
+        <dc:Bounds x="420" y="758" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_GP_SendSupplement_di" bpmnElement="EndEvent_GP_SendSupplement">
+        <dc:Bounds x="760" y="780" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="752" y="823" width="52" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_GP_Start_To_Task_di" bpmnElement="Flow_GP_Start_To_Task">
+        <di:waypoint x="336" y="798" />
+        <di:waypoint x="420" y="798" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GP_Task_To_End_di" bpmnElement="Flow_GP_Task_To_End">
+        <di:waypoint x="640" y="798" />
+        <di:waypoint x="760" y="798" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_RequestSupplement_di" bpmnElement="MessageFlow_RequestSupplement">
+        <di:waypoint x="791" y="553" />
+        <di:waypoint x="810" y="572" />
+        <di:waypoint x="778" y="660" />
+        <di:waypoint x="318" y="660" />
+        <di:waypoint x="318" y="780" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="731" y="590" width="57" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_SupplementReply_di" bpmnElement="MessageFlow_SupplementReply">
+        <di:waypoint x="796" y="798" />
+        <di:waypoint x="1240" y="798" />
+        <di:waypoint x="1240" y="580" />
+        <di:waypoint x="1018" y="580" />
+        <di:waypoint x="1018" y="558" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1123" y="766" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

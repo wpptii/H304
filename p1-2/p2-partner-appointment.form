@@ -1,0 +1,52 @@
+{
+  "components": [
+    {
+      "label": "Appointment time (ISO, for example 2026-07-01T09:30)",
+      "type": "textfield",
+      "id": "Field_partnerAppointmentForm_appointmentDateTime",
+      "key": "partnerAppointmentForm.appointmentDateTime",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Location / Department",
+      "type": "textfield",
+      "id": "Field_partnerAppointmentForm_location",
+      "key": "partnerAppointmentForm.location",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Arrange someone (schedule a team)",
+      "type": "textfield",
+      "id": "Field_partnerAppointmentForm_arrangedBy",
+      "key": "partnerAppointmentForm.arrangedBy",
+      "layout": {
+        "row": "Row_3",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p2-partner-appointment",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

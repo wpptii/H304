@@ -1,0 +1,77 @@
+{
+  "components": [
+    {
+      "label": "Referral Source",
+      "values": [
+        {
+          "label": "GP clinic",
+          "value": "gp"
+        },
+        {
+          "label": "Other hospitals",
+          "value": "other-hospital"
+        },
+        {
+          "label": "In-hospital departments",
+          "value": "internal"
+        },
+        {
+          "label": "Patient self-turn",
+          "value": "self"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_registerForm_referralSource",
+      "key": "registerForm.referralSource",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Materials received (listed item by item)",
+      "type": "textarea",
+      "id": "Field_registerForm_attachments",
+      "key": "registerForm.attachments",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Missing materials",
+      "type": "textarea",
+      "id": "Field_registerForm_missingMaterials",
+      "key": "registerForm.missingMaterials",
+      "description": "This column directly decides 'Is it complete?' and which branch the gateway takes: leave it blank = complete → hand over to clinical review; fill it in = incomplete → request missing documents and wait for them.",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Required field check notes (patient info / diagnosis / test results, etc.)",
+      "type": "textarea",
+      "id": "Field_registerForm_requiredFields",
+      "key": "registerForm.requiredFields",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Registrar (Medical Secretary)",
+      "type": "textfield",
+      "id": "Field_registerForm_registeredBy",
+      "key": "registerForm.registeredBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p1-register-referral",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

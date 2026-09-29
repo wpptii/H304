@@ -1,0 +1,68 @@
+{
+  "components": [
+    {
+      "label": "Letter type (BR-23)",
+      "values": [
+        {
+          "label": "Outpatient visit summary",
+          "value": "clinic-summary"
+        },
+        {
+          "label": "Referral letter",
+          "value": "referral-letter"
+        },
+        {
+          "label": "Test result explanation",
+          "value": "result-explanation"
+        },
+        {
+          "label": "Other",
+          "value": "other"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_letterForm_letterType",
+      "key": "letterForm.letterType",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Letter body (BR-23: drafted by the consultant physician)",
+      "type": "textarea",
+      "id": "Field_letterForm_letterBody",
+      "key": "letterForm.letterBody",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Drafter (consultant physician)",
+      "type": "textfield",
+      "id": "Field_letterForm_draftedBy",
+      "key": "letterForm.draftedBy",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Draft completion time (ISO date-time, for the 7-day deadline determination)",
+      "type": "textfield",
+      "id": "Field_letterDraftCompletedAt",
+      "key": "letterDraftCompletedAt",
+      "description": "Leave blank and the dispatch worker will use the current time",
+      "validate": {
+        "required": false
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p10-draft-letter",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "components": [
+    {
+      "label": "Approval Result (BR-17: Subject to the receipt/confirmation from the funding agency / insurance company) ",
+      "values": [
+        {
+          "label": "Translation approved",
+          "value": "approved"
+        },
+        {
+          "label": "Partially approved",
+          "value": "partially-approved"
+        },
+        {
+          "label": "Rejected",
+          "value": "declined"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_approvalRecordForm_approvalStatus",
+      "key": "approvalRecordForm.approvalStatus",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Final approved amount ",
+      "type": "textfield",
+      "id": "Field_approvalRecordForm_approvedAmount",
+      "key": "approvalRecordForm.approvedAmount",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Approval conditions (recorded in the medical case as a prerequisite credential for payment) ",
+      "type": "textarea",
+      "id": "Field_approvalRecordForm_restrictions",
+      "key": "approvalRecordForm.restrictions",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Registrant (Finance Team)",
+      "type": "textfield",
+      "id": "Field_approvalRecordForm_recordedBy",
+      "key": "approvalRecordForm.recordedBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p7-record-approval",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

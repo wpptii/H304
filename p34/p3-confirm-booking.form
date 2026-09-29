@@ -1,0 +1,56 @@
+{
+  "components": [
+    {
+      "label": "Appointment Time (BR-13)",
+      "type": "textfield",
+      "id": "Field_confirmForm_appointmentDateTime",
+      "key": "confirmForm.appointmentDateTime",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Visit Location (Campus / Floor / Room)",
+      "type": "textfield",
+      "id": "Field_confirmForm_location",
+      "key": "confirmForm.location",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Slot Reference Returned by Scheduling Service",
+      "type": "textfield",
+      "id": "Field_confirmForm_slotReference",
+      "key": "confirmForm.slotReference",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Written Back to Medical Record / Scheduling System",
+      "type": "checkbox",
+      "id": "Field_confirmForm_writtenBack",
+      "key": "confirmForm.writtenBack",
+      "defaultValue": true
+    },
+    {
+      "label": "Confirmed by (Outpatient Appointment Team)",
+      "type": "textfield",
+      "id": "Field_confirmForm_confirmedBy",
+      "key": "confirmForm.confirmedBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p3-confirm-booking",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}
