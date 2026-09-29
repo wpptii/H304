@@ -1,0 +1,61 @@
+{
+  "components": [
+    {
+      "label": "Transfer method",
+      "values": [
+        {
+          "label": "Routine handover",
+          "value": "standard"
+        },
+        {
+          "label": "Urgent handover",
+          "value": "urgent"
+        },
+        {
+          "label": "Needs to be handed over after adding more details",
+          "value": "with-note"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_transferForm_transferType",
+      "key": "transferForm.transferType",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Receiving a consulting doctor",
+      "type": "textfield",
+      "id": "Field_transferForm_handedOverTo",
+      "key": "transferForm.handedOverTo",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Handover notes (administrative matters, excluding clinical judgment)）",
+      "type": "textarea",
+      "id": "Field_transferForm_transferNotes",
+      "key": "transferForm.transferNotes",
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Confirmed: I have not done a clinical suitability assessment",
+      "type": "checkbox",
+      "id": "Field_transferForm_noClinicalAssessment",
+      "key": "transferForm.noClinicalAssessment",
+      "defaultValue": true
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p1-transfer-clinical",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

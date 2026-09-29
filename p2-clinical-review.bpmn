@@ -1,0 +1,545 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_P2_ClinicalReview" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:message id="Message_ReferralAccepted" name="ReferralAccepted" />
+  <bpmn:message id="Message_ReferralRejected" name="ReferralRejected" />
+  <bpmn:message id="Message_SupplementRequested" name="SupplementRequested" />
+  <bpmn:message id="Message_SupplementReceived" name="SupplementReceived">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=referralId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_ReferredToOtherHospital" name="ReferredToOtherHospital" />
+  <bpmn:collaboration id="Collaboration_P2">
+    <bpmn:participant id="Participant_Hospital" name="Hospital" processRef="Process_P2_ClinicalReview" />
+    <bpmn:participant id="Participant_Partners" name="Referral Agency / Appointment Team / Other Hospitals" processRef="Process_P2_PartnerPool" />
+    <bpmn:messageFlow id="MessageFlow_ReferralAccepted" name="Accepted: Schedule an appointment" sourceRef="Task_NotifySchedulingTeam" targetRef="StartEvent_Partner_Accepted" />
+    <bpmn:messageFlow id="MessageFlow_ReferralRejected" name="Rejection notice" sourceRef="Task_NotifyReferralInstitution" targetRef="StartEvent_Partner_Rejected" />
+    <bpmn:messageFlow id="MessageFlow_SupplementRequested" name="Request for additional documents" sourceRef="Task_RequestSupplement" targetRef="StartEvent_Partner_SupplementRequested" />
+    <bpmn:messageFlow id="MessageFlow_SupplementReceived" name="Send back the additional documents" sourceRef="EndEvent_Partner_SendSupplement" targetRef="Catch_SupplementReceived" />
+    <bpmn:messageFlow id="MessageFlow_ReferredToOtherHospital" name="Refer to another hospital" sourceRef="Task_NotifyOtherHospital" targetRef="StartEvent_Partner_OtherHospital" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_P2_ClinicalReview" name="P2 Clinical Review and Referral Decisions" isExecutable="true">
+    <bpmn:documentation>P2 临床审核与转诊决策。骨架：Start → User Task「临床审核」Form（决定 / 理由 / 决定人）→ External Worker「写审计/更新状态」topic: clinical-decision-audit → XOR 决策：接受 → 告知预约团队/排程服务；拒绝 → 告知转诊机构；要求补充 → 要求 GP 补充材料 并 等待补件（收到后回到临床审核）；转介 → 转介其他医院 → End。规则：BR-02、BR-03、BR-04。亮点：只有 decision = accept 的分支才会通知预约团队/排程服务，即「只有顾问接受后才能预约」的门控规则。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P2">
+      <bpmn:lane id="Lane_GP" name="GP / Referral Source (Waiting for Additional Documents)">
+        <bpmn:flowNodeRef>Task_NotifyOtherHospital</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RequestSupplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Catch_SupplementReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyReferralInstitution</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Referred</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Notify" name="Cross-organization Communication" />
+      <bpmn:lane id="Lane_Consultant" name="Consultant Doctor">
+        <bpmn:flowNodeRef>StartEvent_ReferralReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClinicalReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AuditDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifySchedulingTeam</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Accepted</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_ReferralReceived" name="Received a referral request">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p2-start-referral" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_Review</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_ClinicalReview" name="Clinical review">
+      <bpmn:documentation>BR-02：顾问医师审核转诊申请并作出决定（接受 / 拒绝 / 要求补充 / 转介），必须记录理由与决定人。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p2-clinical-review" />
+        <zeebe:assignmentDefinition candidateGroups="consultants" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_Review</bpmn:incoming>
+      <bpmn:incoming>Flow_Supplement_To_Review</bpmn:incoming>
+      <bpmn:outgoing>Flow_Review_To_Audit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_AuditDecision" name="Write Audit / Update Status">
+      <bpmn:documentation>External Worker：把顾问决定写入审计记录并更新病例状态（BR-04）。Job type（topic）= clinical-decision-audit。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="clinical-decision-audit" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="audit" value="clinical-decision-audit-log" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= reviewForm.decision" target="decision" />
+          <zeebe:input source="= reviewForm.reason" target="reason" />
+          <zeebe:input source="= reviewForm.decidedBy" target="decidedBy" />
+          <zeebe:input source="= referralId" target="referralId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Review_To_Audit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Audit_To_Decision</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Decision" name="Decision?">
+      <bpmn:incoming>Flow_Audit_To_Decision</bpmn:incoming>
+      <bpmn:outgoing>Flow_Decision_Accept</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Decision_Reject</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Decision_Supplement</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Decision_Refer</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_NotifyOtherHospital" name="Refer to another hospital">
+      <bpmn:documentation>Message：向其他医院投递 ReferredToOtherHospital 并发送转诊资料。Job type（topic）= notify-other-hospital。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-other-hospital" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="ReferredToOtherHospital" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Decision_Refer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Refer_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_RequestSupplement" name="Ask GP to provide additional materials">
+      <bpmn:documentation>Message：向 GP / 转诊来源投递 SupplementRequested，请其补充材料。Job type（topic）= request-supplement。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="request-supplement" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="SupplementRequested" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+          <zeebe:input source="= reviewForm.reason" target="missingItems" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Decision_Supplement</bpmn:incoming>
+      <bpmn:outgoing>Flow_Supplement_To_Catch</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="Catch_SupplementReceived" name="Waiting for additional documents">
+      <bpmn:documentation>等待 GP / 转诊来源回传补充材料（消息 SupplementReceived，关联键 = referralId），收到后回到「临床审核」重新决策。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:subscription correlationKey="= referralId" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Supplement_To_Catch</bpmn:incoming>
+      <bpmn:outgoing>Flow_Supplement_To_Review</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_SupplementReceived" messageRef="Message_SupplementReceived" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_Start_To_Review" sourceRef="StartEvent_ReferralReceived" targetRef="Task_ClinicalReview" />
+    <bpmn:sequenceFlow id="Flow_Supplement_To_Review" name="Supplement Received: Re-review" sourceRef="Catch_SupplementReceived" targetRef="Task_ClinicalReview" />
+    <bpmn:sequenceFlow id="Flow_Review_To_Audit" sourceRef="Task_ClinicalReview" targetRef="Task_AuditDecision" />
+    <bpmn:sequenceFlow id="Flow_Audit_To_Decision" sourceRef="Task_AuditDecision" targetRef="Gateway_Decision" />
+    <bpmn:sequenceFlow id="Flow_Decision_Accept" name="Accept" sourceRef="Gateway_Decision" targetRef="Task_NotifySchedulingTeam">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= reviewForm.decision = "accept"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Decision_Reject" name="Refuse" sourceRef="Gateway_Decision" targetRef="Task_NotifyReferralInstitution">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= reviewForm.decision = "reject"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Decision_Supplement" name="Requesting a supplement" sourceRef="Gateway_Decision" targetRef="Task_RequestSupplement">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= reviewForm.decision = "request-supplement"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Decision_Refer" name="Referral" sourceRef="Gateway_Decision" targetRef="Task_NotifyOtherHospital">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= reviewForm.decision = "refer"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Accept_To_End" sourceRef="Task_NotifySchedulingTeam" targetRef="EndEvent_Accepted" />
+    <bpmn:sequenceFlow id="Flow_Reject_To_End" sourceRef="Task_NotifyReferralInstitution" targetRef="EndEvent_Rejected" />
+    <bpmn:sequenceFlow id="Flow_Refer_To_End" sourceRef="Task_NotifyOtherHospital" targetRef="EndEvent_Referred" />
+    <bpmn:sequenceFlow id="Flow_Supplement_To_Catch" sourceRef="Task_RequestSupplement" targetRef="Catch_SupplementReceived" />
+    <bpmn:serviceTask id="Task_NotifySchedulingTeam" name="Notify the booking team / schedule service">
+      <bpmn:documentation>Message：向预约团队 / 排程服务投递 ReferralAccepted，允许进入预约排程。Job type（topic）= notify-scheduling-team。BR-03 门控：只有本分支会被执行。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-scheduling-team" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="ReferralAccepted" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Decision_Accept</bpmn:incoming>
+      <bpmn:outgoing>Flow_Accept_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Accepted" name="Accept: Go to appointment schedule">
+      <bpmn:incoming>Flow_Accept_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_NotifyReferralInstitution" name="Let the referral agency know">
+      <bpmn:documentation>Message：向转诊机构投递 ReferralRejected，并附拒绝理由。Job type（topic）= notify-referral-institution。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-referral-institution" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="ReferralRejected" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+          <zeebe:input source="= reviewForm.reason" target="reason" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Decision_Reject</bpmn:incoming>
+      <bpmn:outgoing>Flow_Reject_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Rejected" name="Rejected: Referred agency has already responded">
+      <bpmn:incoming>Flow_Reject_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Referred" name="Referral: Referred to another hospital">
+      <bpmn:incoming>Flow_Refer_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_P2_PartnerPool" name="P2 Clinical Review and Referral Decisions (Referral Institutions / Appointment Team / Other Hospitals)" isExecutable="true">
+    <bpmn:documentation>外部 Pool：承接顾问医师的四种决定通知 —— 接受（安排预约）、拒绝、要求补件（补件后回传）、转介其他医院。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P2_Partner">
+      <bpmn:lane id="Lane_PartnerReferrer" name="Referral Agency / Appointment Team">
+        <bpmn:flowNodeRef>StartEvent_Partner_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Partner_ArrangeAppointment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Partner_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_Partner_SupplementRequested</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Partner_ProvideSupplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Partner_SendSupplement</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_PartnerOther" name="Other hospitals / Referrals">
+        <bpmn:flowNodeRef>StartEvent_Partner_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Partner_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_Partner_OtherHospital</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Partner_OtherHospital</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Partner_Accepted" name="Got the &#39;Accepted&#39; notification">
+      <bpmn:outgoing>Flow_Partner_Accepted_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Partner_Accepted" messageRef="Message_ReferralAccepted" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_Partner_Accepted_To_Task" sourceRef="StartEvent_Partner_Accepted" targetRef="Task_Partner_ArrangeAppointment" />
+    <bpmn:userTask id="Task_Partner_ArrangeAppointment" name="Schedule a new patient appointment">
+      <bpmn:documentation>BR-04：预约团队为已接受的新患者安排预约并登记时间地点。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p2-partner-appointment" />
+        <zeebe:assignmentDefinition candidateGroups="appointment-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Partner_Accepted_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_Partner_Accepted_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_Partner_Accepted_To_End" sourceRef="Task_Partner_ArrangeAppointment" targetRef="EndEvent_Partner_Accepted" />
+    <bpmn:endEvent id="EndEvent_Partner_Accepted" name="Already arranged">
+      <bpmn:incoming>Flow_Partner_Accepted_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="StartEvent_Partner_SupplementRequested" name="Received a request for additional documents">
+      <bpmn:outgoing>Flow_Partner_Supplement_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Partner_Supplement" messageRef="Message_SupplementRequested" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_Partner_Supplement_To_Task" sourceRef="StartEvent_Partner_SupplementRequested" targetRef="Task_Partner_ProvideSupplement" />
+    <bpmn:userTask id="Task_Partner_ProvideSupplement" name="Supplementary materials">
+      <bpmn:documentation>转诊机构 / GP 补齐顾问医师要求的材料。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p2-partner-supplement" />
+        <zeebe:assignmentDefinition candidateGroups="referring-practices" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Partner_Supplement_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_Partner_Supplement_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_Partner_Supplement_To_End" sourceRef="Task_Partner_ProvideSupplement" targetRef="EndEvent_Partner_SendSupplement" />
+    <bpmn:endEvent id="EndEvent_Partner_SendSupplement" name="Send back additional materials">
+      <bpmn:documentation>Message：投递 SupplementReceived（关联键 = referralId），医院侧「等待补件」捕获后重新审核。Job type = partner-send-supplement。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="partner-send-supplement" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Partner_Supplement_To_End</bpmn:incoming>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Partner_SendSupplement" />
+    </bpmn:endEvent>
+    <bpmn:startEvent id="StartEvent_Partner_Rejected" name="Got a rejection notice">
+      <bpmn:outgoing>Flow_Partner_Rejected_To_End</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Partner_Rejected" messageRef="Message_ReferralRejected" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_Partner_Rejected_To_End" sourceRef="StartEvent_Partner_Rejected" targetRef="EndEvent_Partner_Rejected" />
+    <bpmn:endEvent id="EndEvent_Partner_Rejected" name="Rejection recorded">
+      <bpmn:incoming>Flow_Partner_Rejected_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="StartEvent_Partner_OtherHospital" name="Got a referral">
+      <bpmn:outgoing>Flow_Partner_Other_To_End</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Partner_Other" messageRef="Message_ReferredToOtherHospital" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_Partner_Other_To_End" sourceRef="StartEvent_Partner_OtherHospital" targetRef="EndEvent_Partner_OtherHospital" />
+    <bpmn:endEvent id="EndEvent_Partner_OtherHospital" name="Referral received">
+      <bpmn:incoming>Flow_Partner_Other_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_P2">
+    <bpmndi:BPMNPlane id="BPMNPlane_P2" bpmnElement="Collaboration_P2">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="145" y="80" width="1400" height="580" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Consultant_di" bpmnElement="Lane_Consultant" isHorizontal="true">
+        <dc:Bounds x="175" y="80" width="1370" height="240" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Notify_di" bpmnElement="Lane_Notify" isHorizontal="true">
+        <dc:Bounds x="175" y="320" width="1370" height="130" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_GP_di" bpmnElement="Lane_GP" isHorizontal="true">
+        <dc:Bounds x="175" y="450" width="1370" height="210" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_ReferralReceived_di" bpmnElement="StartEvent_ReferralReceived">
+        <dc:Bounds x="217" y="169" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="198" y="212" width="75" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ClinicalReview_di" bpmnElement="Task_ClinicalReview">
+        <dc:Bounds x="275" y="147" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AuditDecision_di" bpmnElement="Task_AuditDecision">
+        <dc:Bounds x="545" y="147" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Decision_di" bpmnElement="Gateway_Decision" isMarkerVisible="true">
+        <dc:Bounds x="805" y="162" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="812" y="137" width="49" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyOtherHospital_di" bpmnElement="Task_NotifyOtherHospital">
+        <dc:Bounds x="915" y="560" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RequestSupplement_di" bpmnElement="Task_RequestSupplement">
+        <dc:Bounds x="415" y="560" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Catch_SupplementReceived_di" bpmnElement="Catch_SupplementReceived">
+        <dc:Bounds x="685" y="582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="723" y="583" width="54" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifySchedulingTeam_di" bpmnElement="Task_NotifySchedulingTeam">
+        <dc:Bounds x="980" y="147" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Accepted_di" bpmnElement="EndEvent_Accepted">
+        <dc:Bounds x="1342" y="169" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1311" y="212" width="94" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyReferralInstitution_di" bpmnElement="Task_NotifyReferralInstitution">
+        <dc:Bounds x="960" y="460" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
+        <dc:Bounds x="1342" y="482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1328" y="525" width="82" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Referred_di" bpmnElement="EndEvent_Referred">
+        <dc:Bounds x="1342" y="582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1324" y="620" width="89" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_Review_di" bpmnElement="Flow_Start_To_Review">
+        <di:waypoint x="253" y="187" />
+        <di:waypoint x="275" y="187" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Supplement_To_Review_di" bpmnElement="Flow_Supplement_To_Review">
+        <di:waypoint x="703" y="582" />
+        <di:waypoint x="703" y="110" />
+        <di:waypoint x="485" y="110" />
+        <di:waypoint x="485" y="147" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="560" y="85" width="70" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Review_To_Audit_di" bpmnElement="Flow_Review_To_Audit">
+        <di:waypoint x="495" y="187" />
+        <di:waypoint x="545" y="187" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Audit_To_Decision_di" bpmnElement="Flow_Audit_To_Decision">
+        <di:waypoint x="745" y="187" />
+        <di:waypoint x="805" y="187" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Decision_Accept_di" bpmnElement="Flow_Decision_Accept">
+        <di:waypoint x="855" y="187" />
+        <di:waypoint x="980" y="187" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="893" y="165" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Decision_Reject_di" bpmnElement="Flow_Decision_Reject">
+        <di:waypoint x="830" y="212" />
+        <di:waypoint x="830" y="500" />
+        <di:waypoint x="960" y="500" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="852" y="473" width="35" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Decision_Supplement_di" bpmnElement="Flow_Decision_Supplement">
+        <di:waypoint x="830" y="212" />
+        <di:waypoint x="830" y="490" />
+        <di:waypoint x="285" y="490" />
+        <di:waypoint x="285" y="600" />
+        <di:waypoint x="415" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="557" y="465" width="65" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Decision_Refer_di" bpmnElement="Flow_Decision_Refer">
+        <di:waypoint x="830" y="212" />
+        <di:waypoint x="830" y="600" />
+        <di:waypoint x="915" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="840" y="573" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Accept_To_End_di" bpmnElement="Flow_Accept_To_End">
+        <di:waypoint x="1180" y="187" />
+        <di:waypoint x="1342" y="187" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reject_To_End_di" bpmnElement="Flow_Reject_To_End">
+        <di:waypoint x="1160" y="500" />
+        <di:waypoint x="1342" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Refer_To_End_di" bpmnElement="Flow_Refer_To_End">
+        <di:waypoint x="1115" y="600" />
+        <di:waypoint x="1342" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Supplement_To_Catch_di" bpmnElement="Flow_Supplement_To_Catch">
+        <di:waypoint x="615" y="600" />
+        <di:waypoint x="685" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_Partners_di" bpmnElement="Participant_Partners" isHorizontal="true">
+        <dc:Bounds x="145" y="700" width="1400" height="300" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_PartnerOther_di" bpmnElement="Lane_PartnerOther" isHorizontal="true">
+        <dc:Bounds x="175" y="850" width="1370" height="150" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_PartnerReferrer_di" bpmnElement="Lane_PartnerReferrer" isHorizontal="true">
+        <dc:Bounds x="175" y="700" width="1370" height="150" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Partner_Accepted_di" bpmnElement="StartEvent_Partner_Accepted">
+        <dc:Bounds x="280" y="757" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="254" y="800" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Partner_ArrangeAppointment_di" bpmnElement="Task_Partner_ArrangeAppointment">
+        <dc:Bounds x="400" y="735" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Partner_Accepted_di" bpmnElement="EndEvent_Partner_Accepted">
+        <dc:Bounds x="720" y="757" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="696" y="800" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Partner_SupplementRequested_di" bpmnElement="StartEvent_Partner_SupplementRequested">
+        <dc:Bounds x="900" y="757" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="890" y="793" width="56" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Partner_ProvideSupplement_di" bpmnElement="Task_Partner_ProvideSupplement">
+        <dc:Bounds x="1020" y="735" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Partner_SendSupplement_di" bpmnElement="EndEvent_Partner_SendSupplement">
+        <dc:Bounds x="1340" y="757" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1332" y="800" width="52" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Partner_Rejected_di" bpmnElement="StartEvent_Partner_Rejected">
+        <dc:Bounds x="280" y="907" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="262" y="876" width="72" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Partner_Rejected_di" bpmnElement="EndEvent_Partner_Rejected">
+        <dc:Bounds x="520" y="907" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="503" y="950" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Partner_OtherHospital_di" bpmnElement="StartEvent_Partner_OtherHospital">
+        <dc:Bounds x="760" y="907" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="744" y="950" width="65" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Partner_OtherHospital_di" bpmnElement="EndEvent_Partner_OtherHospital">
+        <dc:Bounds x="1000" y="907" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="977" y="950" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Partner_Accepted_To_Task_di" bpmnElement="Flow_Partner_Accepted_To_Task">
+        <di:waypoint x="316" y="775" />
+        <di:waypoint x="400" y="775" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Partner_Accepted_To_End_di" bpmnElement="Flow_Partner_Accepted_To_End">
+        <di:waypoint x="620" y="775" />
+        <di:waypoint x="720" y="775" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Partner_Supplement_To_Task_di" bpmnElement="Flow_Partner_Supplement_To_Task">
+        <di:waypoint x="936" y="775" />
+        <di:waypoint x="1020" y="775" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Partner_Supplement_To_End_di" bpmnElement="Flow_Partner_Supplement_To_End">
+        <di:waypoint x="1240" y="775" />
+        <di:waypoint x="1340" y="775" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Partner_Rejected_To_End_di" bpmnElement="Flow_Partner_Rejected_To_End">
+        <di:waypoint x="316" y="925" />
+        <di:waypoint x="520" y="925" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Partner_Other_To_End_di" bpmnElement="Flow_Partner_Other_To_End">
+        <di:waypoint x="796" y="925" />
+        <di:waypoint x="1000" y="925" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ReferralAccepted_di" bpmnElement="MessageFlow_ReferralAccepted">
+        <di:waypoint x="1080" y="227" />
+        <di:waypoint x="1080" y="680" />
+        <di:waypoint x="298" y="680" />
+        <di:waypoint x="298" y="757" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="229" y="660" width="62" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ReferralRejected_di" bpmnElement="MessageFlow_ReferralRejected">
+        <di:waypoint x="1125" y="540" />
+        <di:waypoint x="1125" y="980" />
+        <di:waypoint x="290" y="980" />
+        <di:waypoint x="295" y="943" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1136" y="933" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_SupplementRequested_di" bpmnElement="MessageFlow_SupplementRequested">
+        <di:waypoint x="515" y="640" />
+        <di:waypoint x="515" y="690" />
+        <di:waypoint x="918" y="690" />
+        <di:waypoint x="918" y="757" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="851" y="700" width="57" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_SupplementReceived_di" bpmnElement="MessageFlow_SupplementReceived">
+        <di:waypoint x="1358" y="757" />
+        <di:waypoint x="1358" y="670" />
+        <di:waypoint x="703" y="670" />
+        <di:waypoint x="703" y="618" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1374" y="700" width="71" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ReferredToOtherHospital_di" bpmnElement="MessageFlow_ReferredToOtherHospital">
+        <di:waypoint x="1115" y="640" />
+        <di:waypoint x="1115" y="890" />
+        <di:waypoint x="778" y="890" />
+        <di:waypoint x="778" y="907" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1000" y="856" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,39 @@
+{
+  "components": [
+    {
+      "label": "This additional material (referring institution / GP)",
+      "type": "textarea",
+      "id": "Field_partnerSupplementForm_providedItems",
+      "key": "partnerSupplementForm.providedItems",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Replier",
+      "type": "textfield",
+      "id": "Field_partnerSupplementForm_repliedBy",
+      "key": "partnerSupplementForm.repliedBy",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p2-partner-supplement",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

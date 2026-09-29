@@ -1,0 +1,58 @@
+{
+  "components": [
+    {
+      "label": "Review Decision",
+      "values": [
+        {
+          "label": "Accept",
+          "value": "accept"
+        },
+        {
+          "label": "Refuse",
+          "value": "reject"
+        },
+        {
+          "label": "Needs to provide additional materials",
+          "value": "request-supplement"
+        },
+        {
+          "label": "Refer to another hospital",
+          "value": "refer"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_reviewForm_decision",
+      "key": "reviewForm.decision",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Reason for the decision",
+      "type": "textarea",
+      "id": "Field_reviewForm_reason",
+      "key": "reviewForm.reason",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Decision Maker (Consulting Doctor)",
+      "type": "textfield",
+      "id": "Field_reviewForm_decidedBy",
+      "key": "reviewForm.decidedBy",
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p2-clinical-review",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}
