@@ -1,0 +1,52 @@
+{
+  "components": [
+    {
+      "label": "Reply to the patient (costs / billing / reimbursement standards)",
+      "type": "textarea",
+      "id": "Field_extFinanceForm_answer",
+      "key": "extFinanceForm.answer",
+      "layout": {
+        "row": "Row_1",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Involved Amount and Description",
+      "type": "textfield",
+      "id": "Field_extFinanceForm_amountExplanation",
+      "key": "extFinanceForm.amountExplanation",
+      "layout": {
+        "row": "Row_2",
+        "columns": null
+      },
+      "validate": {
+        "required": false
+      }
+    },
+    {
+      "label": "Handler (Finance Team)",
+      "type": "textfield",
+      "id": "Field_extFinanceForm_handledBy",
+      "key": "extFinanceForm.handledBy",
+      "layout": {
+        "row": "Row_3",
+        "columns": null
+      },
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p8-finance-action",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

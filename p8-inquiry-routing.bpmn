@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_P8_InquiryRouting" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:message id="Message_InquiryToFinance" name="InquiryRoutedToFinance" />
+  <bpmn:message id="Message_InquiryToClinical" name="InquiryRoutedToClinical" />
+  <bpmn:collaboration id="Collaboration_P8">
+    <bpmn:participant id="Participant_Hospital" name="Hospital Pool: Call Handling" processRef="Process_P8_InquiryRouting" />
+    <bpmn:participant id="Participant_External" name="External Pool: Finance / CNS Clinical" processRef="Process_P8_ExternalPool" />
+    <bpmn:messageFlow id="MessageFlow_ToFinance" name="Transfer to financial consulting" sourceRef="Task_RouteToFinance" targetRef="StartEvent_Ext_FinanceInquiry" />
+    <bpmn:messageFlow id="MessageFlow_ToClinical" name="Transfer to clinical consultation" sourceRef="Task_RouteToClinical" targetRef="StartEvent_Ext_ClinicalInquiry" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_P8_InquiryRouting" name="Option 8: Patient Inquiry Handling and Routing" isExecutable="true">
+    <bpmn:documentation>选择 8：患者咨询处理与路由。骨架：Start Message「患者咨询到达」→ User Task「记录并分类咨询」Form（类型 / 内容 / 紧急关键词）→ External Worker「初步分类/紧急度建议」topic: enquiry-triage → XOR 类型：简单行政 → User Task「直接回答」Form → End；财务 → Message 转财务 Pool → 等待处理 → End；临床 → Message 转 CNS/临床 Pool，紧急则高亮 → End。规则：BR-30、BR-31、BR-32、OQ-01。亮点：多 Pool / 多消息路由。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P8">
+      <bpmn:lane id="Lane_CallHandling" name="Call Handling">
+        <bpmn:flowNodeRef>StartEvent_InquiryReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecordAndClassify</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TriageSuggestion</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_InquiryType</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Answering" name="Answer directly / Wait for processing">
+        <bpmn:flowNodeRef>Task_AnswerSimple</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_SimpleAnswered</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AwaitFinance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_FinanceHandled</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_FinanceClinical" name="Finance Pool / CNS Clinical Pool (cross-pool messages)">
+        <bpmn:flowNodeRef>Task_RouteToClinical</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ClinicalHandled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RouteToFinance</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_Start_To_Record" sourceRef="StartEvent_InquiryReceived" targetRef="Task_RecordAndClassify" />
+    <bpmn:sequenceFlow id="Flow_Record_To_Triage" sourceRef="Task_RecordAndClassify" targetRef="Task_TriageSuggestion" />
+    <bpmn:sequenceFlow id="Flow_Triage_To_Gateway" sourceRef="Task_TriageSuggestion" targetRef="Gateway_InquiryType" />
+    <bpmn:sequenceFlow id="Flow_Type_Simple" name="Simple administration" sourceRef="Gateway_InquiryType" targetRef="Task_AnswerSimple">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm.inquiryType = "simple"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Type_Finance" name="Finance" sourceRef="Gateway_InquiryType" targetRef="Task_RouteToFinance">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm.inquiryType = "finance"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Type_Clinical" name="clinical" sourceRef="Gateway_InquiryType" targetRef="Task_RouteToClinical">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm.inquiryType = "clinical"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:userTask id="Task_AnswerSimple" name="Answer directly">
+      <bpmn:documentation>BR-32：简单行政类咨询由呼叫处理团队直接答复患者并记录答复内容。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p8-simple-answer" />
+        <zeebe:assignmentDefinition candidateGroups="call-handling" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Type_Simple</bpmn:incoming>
+      <bpmn:outgoing>Flow_Answer_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_Answer_To_End" sourceRef="Task_AnswerSimple" targetRef="EndEvent_SimpleAnswered" />
+    <bpmn:endEvent id="EndEvent_SimpleAnswered" name="Already replied directly">
+      <bpmn:incoming>Flow_Answer_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Finance_To_Await" sourceRef="Task_RouteToFinance" targetRef="Task_AwaitFinance" />
+    <bpmn:serviceTask id="Task_AwaitFinance" name="Pending">
+      <bpmn:documentation>等待财务 Pool 处理完毕并回执（OQ-01：跨 Pool 处理时限按运营要求约定）。Job type（topic）= await-finance-response。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="await-finance-response" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= enquiryId" target="enquiryId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Finance_To_Await</bpmn:incoming>
+      <bpmn:outgoing>Flow_Await_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Await_To_End" sourceRef="Task_AwaitFinance" targetRef="EndEvent_FinanceHandled" />
+    <bpmn:endEvent id="EndEvent_FinanceHandled" name="Finance has handled it">
+      <bpmn:incoming>Flow_Await_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_RouteToClinical" name="Transfer to CNS / Clinical Pool">
+      <bpmn:documentation>Message：向 CNS / 临床 Pool 投递 InquiryRoutedToClinical，并带上紧急度（urgency=urgent 时由接收方高亮处理）。Job type（topic）= route-to-clinical。BR-31：紧急关键词必须随消息传递。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="route-to-clinical" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="InquiryRoutedToClinical" />
+          <zeebe:header key="highlightWhenUrgent" value="true" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= enquiryId" target="enquiryId" />
+          <zeebe:input source="= enquiryForm.content" target="content" />
+          <zeebe:input source="= enquiryForm.urgentKeywords" target="urgentKeywords" />
+          <zeebe:input source="= triageUrgency" target="urgency" />
+          <zeebe:input source="= triageNote" target="triageNote" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Type_Clinical</bpmn:incoming>
+      <bpmn:outgoing>Flow_Clinical_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Clinical_To_End" sourceRef="Task_RouteToClinical" targetRef="EndEvent_ClinicalHandled" />
+    <bpmn:endEvent id="EndEvent_ClinicalHandled" name="Transferred to clinical (highlight if urgent)">
+      <bpmn:incoming>Flow_Clinical_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="StartEvent_InquiryReceived" name="Patient consultation has arrived">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p8-start-enquiry" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_To_Record</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_RecordAndClassify" name="Record and categorize inquiries">
+      <bpmn:documentation>BR-30：呼叫处理团队记录咨询内容并选择类型（简单行政 / 财务 / 临床），登记紧急关键词。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p8-inquiry-log" />
+        <zeebe:assignmentDefinition candidateGroups="call-handling" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_Record</bpmn:incoming>
+      <bpmn:outgoing>Flow_Record_To_Triage</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_TriageSuggestion" name="Preliminary Classification / Urgency Suggestions">
+      <bpmn:documentation>External Worker：根据咨询类型与紧急关键词给出初步分类与紧急度建议（BR-31）。Job type（topic）= enquiry-triage。写回 triageUrgency（routine / urgent）与 triageNote。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="enquiry-triage" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="triage" value="enquiry-triage-rules" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= enquiryForm.inquiryType" target="inquiryType" />
+          <zeebe:input source="= enquiryForm.content" target="content" />
+          <zeebe:input source="= enquiryForm.urgentKeywords" target="urgentKeywords" />
+          <zeebe:input source="= enquiryId" target="enquiryId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Record_To_Triage</bpmn:incoming>
+      <bpmn:outgoing>Flow_Triage_To_Gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_InquiryType" name="What type of consultation?">
+      <bpmn:incoming>Flow_Triage_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Type_Simple</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Type_Finance</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Type_Clinical</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_RouteToFinance" name="Transfer to finance pool">
+      <bpmn:documentation>Message：向财务 Pool 投递 InquiryRoutedToFinance。Job type（topic）= route-to-finance。BR-30：财务类咨询不得由呼叫处理团队直接答复。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="route-to-finance" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="messageName" value="InquiryRoutedToFinance" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= enquiryId" target="enquiryId" />
+          <zeebe:input source="= enquiryForm.content" target="content" />
+          <zeebe:input source="= triageUrgency" target="urgency" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Type_Finance</bpmn:incoming>
+      <bpmn:outgoing>Flow_Finance_To_Await</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmn:process id="Process_P8_ExternalPool" name="选择 8：患者咨询处理与路由（财务 / CNS 临床）" isExecutable="true">
+    <bpmn:documentation>外部 Pool：分别接收「转财务」与「转临床」两条消息；临床分支带 urgency，紧急时高亮处理。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_P8_External">
+      <bpmn:lane id="Lane_ExtFinance" name="Finance">
+        <bpmn:flowNodeRef>StartEvent_Ext_FinanceInquiry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Ext_FinanceHandle</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Ext_FinanceDone</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ExtClinical" name="CNS / Clinical">
+        <bpmn:flowNodeRef>StartEvent_Ext_ClinicalInquiry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Ext_ClinicalHandle</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Ext_ClinicalDone</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Ext_FinanceInquiry" name="Received a finance-related inquiry">
+      <bpmn:outgoing>Flow_ExtFinance_Start_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_ExtFinance_Start" messageRef="Message_InquiryToFinance" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_ExtFinance_Start_To_Task" sourceRef="StartEvent_Ext_FinanceInquiry" targetRef="Task_Ext_FinanceHandle" />
+    <bpmn:userTask id="Task_Ext_FinanceHandle" name="Financial handling advice">
+      <bpmn:documentation>财务团队处理费用类咨询并登记答复与金额说明。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p8-finance-action" />
+        <zeebe:assignmentDefinition candidateGroups="finance-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ExtFinance_Start_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_ExtFinance_Task_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_ExtFinance_Task_To_End" sourceRef="Task_Ext_FinanceHandle" targetRef="EndEvent_Ext_FinanceDone" />
+    <bpmn:endEvent id="EndEvent_Ext_FinanceDone" name="Finance has responded">
+      <bpmn:incoming>Flow_ExtFinance_Task_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="StartEvent_Ext_ClinicalInquiry" name="Received a clinical consultation">
+      <bpmn:outgoing>Flow_ExtClinical_Start_To_Task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_ExtClinical_Start" messageRef="Message_InquiryToClinical" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_ExtClinical_Start_To_Task" sourceRef="StartEvent_Ext_ClinicalInquiry" targetRef="Task_Ext_ClinicalHandle" />
+    <bpmn:userTask id="Task_Ext_ClinicalHandle" name="Clinical handling consultation (highlight if urgent)">
+      <bpmn:documentation>BR-31：CNS / 临床团队处理咨询；消息携带 urgency=urgent 时高亮优先处理。</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="p8-clinical-action" />
+        <zeebe:assignmentDefinition candidateGroups="clinical-team" />
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ExtClinical_Start_To_Task</bpmn:incoming>
+      <bpmn:outgoing>Flow_ExtClinical_Task_To_End</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_ExtClinical_Task_To_End" sourceRef="Task_Ext_ClinicalHandle" targetRef="EndEvent_Ext_ClinicalDone" />
+    <bpmn:endEvent id="EndEvent_Ext_ClinicalDone" name="Clinical has responded">
+      <bpmn:incoming>Flow_ExtClinical_Task_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_P8">
+    <bpmndi:BPMNPlane id="BPMNPlane_P8" bpmnElement="Collaboration_P8">
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1520" height="660" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_FinanceClinical_di" bpmnElement="Lane_FinanceClinical" isHorizontal="true">
+        <dc:Bounds x="190" y="530" width="1490" height="210" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Answering_di" bpmnElement="Lane_Answering" isHorizontal="true">
+        <dc:Bounds x="190" y="300" width="1490" height="230" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_CallHandling_di" bpmnElement="Lane_CallHandling" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="1490" height="220" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AnswerSimple_di" bpmnElement="Task_AnswerSimple">
+        <dc:Bounds x="950" y="320" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_SimpleAnswered_di" bpmnElement="EndEvent_SimpleAnswered">
+        <dc:Bounds x="1240" y="342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1222" y="385" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AwaitFinance_di" bpmnElement="Task_AwaitFinance">
+        <dc:Bounds x="950" y="430" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_FinanceHandled_di" bpmnElement="EndEvent_FinanceHandled">
+        <dc:Bounds x="1240" y="452" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1229" y="495" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RouteToClinical_di" bpmnElement="Task_RouteToClinical">
+        <dc:Bounds x="950" y="560" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_ClinicalHandled_di" bpmnElement="EndEvent_ClinicalHandled">
+        <dc:Bounds x="1240" y="582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1217" y="545" width="81" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_InquiryReceived_di" bpmnElement="StartEvent_InquiryReceived">
+        <dc:Bounds x="232" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="210" y="225" width="80" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RecordAndClassify_di" bpmnElement="Task_RecordAndClassify">
+        <dc:Bounds x="300" y="160" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TriageSuggestion_di" bpmnElement="Task_TriageSuggestion">
+        <dc:Bounds x="580" y="160" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_InquiryType_di" bpmnElement="Gateway_InquiryType" isMarkerVisible="true">
+        <dc:Bounds x="865" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="889" y="163" width="65" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RouteToFinance_di" bpmnElement="Task_RouteToFinance">
+        <dc:Bounds x="300" y="600" width="200" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_Record_di" bpmnElement="Flow_Start_To_Record">
+        <di:waypoint x="268" y="200" />
+        <di:waypoint x="300" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Record_To_Triage_di" bpmnElement="Flow_Record_To_Triage">
+        <di:waypoint x="520" y="200" />
+        <di:waypoint x="580" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Triage_To_Gateway_di" bpmnElement="Flow_Triage_To_Gateway">
+        <di:waypoint x="680" y="160" />
+        <di:waypoint x="680" y="140" />
+        <di:waypoint x="890" y="140" />
+        <di:waypoint x="890" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Type_Simple_di" bpmnElement="Flow_Type_Simple">
+        <di:waypoint x="890" y="225" />
+        <di:waypoint x="890" y="360" />
+        <di:waypoint x="950" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="871" y="278" width="69" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Type_Finance_di" bpmnElement="Flow_Type_Finance">
+        <di:waypoint x="865" y="200" />
+        <di:waypoint x="810" y="200" />
+        <di:waypoint x="810" y="560" />
+        <di:waypoint x="400" y="560" />
+        <di:waypoint x="400" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="805" y="369" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Type_Clinical_di" bpmnElement="Flow_Type_Clinical">
+        <di:waypoint x="915" y="200" />
+        <di:waypoint x="1410" y="200" />
+        <di:waypoint x="1410" y="680" />
+        <di:waypoint x="1110" y="680" />
+        <di:waypoint x="1110" y="640" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1411" y="433" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Answer_To_End_di" bpmnElement="Flow_Answer_To_End">
+        <di:waypoint x="1150" y="360" />
+        <di:waypoint x="1240" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Finance_To_Await_di" bpmnElement="Flow_Finance_To_Await">
+        <di:waypoint x="500" y="670" />
+        <di:waypoint x="900" y="670" />
+        <di:waypoint x="900" y="470" />
+        <di:waypoint x="950" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Await_To_End_di" bpmnElement="Flow_Await_To_End">
+        <di:waypoint x="1150" y="470" />
+        <di:waypoint x="1240" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Clinical_To_End_di" bpmnElement="Flow_Clinical_To_End">
+        <di:waypoint x="1150" y="600" />
+        <di:waypoint x="1240" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_External_di" bpmnElement="Participant_External" isHorizontal="true">
+        <dc:Bounds x="160" y="780" width="1520" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ExtClinical_di" bpmnElement="Lane_ExtClinical" isHorizontal="true">
+        <dc:Bounds x="190" y="880" width="1490" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ExtFinance_di" bpmnElement="Lane_ExtFinance" isHorizontal="true">
+        <dc:Bounds x="190" y="780" width="1490" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Ext_FinanceInquiry_di" bpmnElement="StartEvent_Ext_FinanceInquiry">
+        <dc:Bounds x="300" y="812" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="282" y="855" width="73" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_FinanceHandle_di" bpmnElement="Task_Ext_FinanceHandle">
+        <dc:Bounds x="430" y="790" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Ext_FinanceDone_di" bpmnElement="EndEvent_Ext_FinanceDone">
+        <dc:Bounds x="760" y="812" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="749" y="855" width="60" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Ext_ClinicalInquiry_di" bpmnElement="StartEvent_Ext_ClinicalInquiry">
+        <dc:Bounds x="300" y="912" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="289" y="955" width="59" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ext_ClinicalHandle_di" bpmnElement="Task_Ext_ClinicalHandle">
+        <dc:Bounds x="430" y="890" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Ext_ClinicalDone_di" bpmnElement="EndEvent_Ext_ClinicalDone">
+        <dc:Bounds x="760" y="912" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="750" y="955" width="57" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_ExtFinance_Start_To_Task_di" bpmnElement="Flow_ExtFinance_Start_To_Task">
+        <di:waypoint x="336" y="830" />
+        <di:waypoint x="430" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ExtFinance_Task_To_End_di" bpmnElement="Flow_ExtFinance_Task_To_End">
+        <di:waypoint x="650" y="830" />
+        <di:waypoint x="760" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ExtClinical_Start_To_Task_di" bpmnElement="Flow_ExtClinical_Start_To_Task">
+        <di:waypoint x="336" y="930" />
+        <di:waypoint x="430" y="930" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ExtClinical_Task_To_End_di" bpmnElement="Flow_ExtClinical_Task_To_End">
+        <di:waypoint x="650" y="930" />
+        <di:waypoint x="760" y="930" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ToFinance_di" bpmnElement="MessageFlow_ToFinance">
+        <di:waypoint x="400" y="680" />
+        <di:waypoint x="400" y="760" />
+        <di:waypoint x="318" y="760" />
+        <di:waypoint x="318" y="812" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="436" y="736" width="53" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_ToClinical_di" bpmnElement="MessageFlow_ToClinical">
+        <di:waypoint x="1050" y="640" />
+        <di:waypoint x="1050" y="720" />
+        <di:waypoint x="250" y="720" />
+        <di:waypoint x="250" y="930" />
+        <di:waypoint x="300" y="930" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1081" y="696" width="59" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
