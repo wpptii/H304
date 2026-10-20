@@ -6,7 +6,8 @@
       "id": "Field_referralId",
       "key": "referralId",
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
@@ -15,7 +16,9 @@
       "id": "Field_patientName",
       "key": "patientName",
       "validate": {
-        "required": false
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -24,7 +27,9 @@
       "id": "Field_referralDepartment",
       "key": "referralDepartment",
       "validate": {
-        "required": false
+        "required": false,
+        "minLength": 2,
+        "maxLength": 80
       }
     }
   ],

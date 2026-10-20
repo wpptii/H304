@@ -1,0 +1,87 @@
+=============== STMT 1 (ok=True) ===============
+TABLE_NAME        | ROWS
+referral          | 1
+patient           | 0
+appointment       | 1
+clinical_decision | 0
+clinic_letter     | 0
+funding_case      | 1
+payment           | 1
+enquiry           | 0
+process_audit     | 12
+app_user          | 7
+user_role         | 8
+(11 rows, 6 ms)
+=============== STMT 2 (ok=True) ===============
+REFERRAL_ID | PATIENT_NAME    | COMPLETENESS_STATUS | REFERRAL_STATUS | DECISION | DECIDED_BY | APPOINTMENT_ID | SLOT_REFERENCE | APPOINTMENT_DATE_TIME | FUNDING_CASE_ID | FUNDING_SOURCE | APPROVED_AMOUNT | LETTER_CASE_ID | LETTER_STATUS | DISPATCHED_WITHIN7_DAYS | PSP_REFERENCE | PAYMENT_STATUS | PAID_AMOUNT
+REF-DB-001  | Test Patient DB | COMPLETE            | COMPLETE        | null     | null       | null           | null           | null                  | null            | null           | null            | null           | null          | null                    | null          | null           | null
+(1 row, 5 ms)
+=============== STMT 3 (ok=True) ===============
+ID | JOB_TYPE                    | ACTION                    | BUSINESS_KEY     | PROCESS_DEFINITION_ID            | ELEMENT_ID                    | PROCESS_INSTANCE_KEY | JOB_KEY          | PERFORMED_BY                | PERFORMED_AT                  | DETAILS
+1  | funding-validation          | record-funding            | CASE-RBAC-3003   | Process_P7_FundingDetermination  | Task_ValidateFunding          | 2251799813770027     | 2251799813770102 | funding-validation          | 2026-10-13 17:05:29.634136+08 | appointmentId=APPT-RBAC-3002 source=insurer amount=250 status=self-pay
+2  | referral-completeness-check | completeness-check        | REF-DB-001       | Process_P1_ReferralIntake        | Task_CompletenessCheck        | 2251799813772695     | 2251799813772706 | referral-completeness-check | 2026-10-13 17:06:21.498626+08 | isComplete=true missingItems=null
+33 | send-payment-request        | send-payment-request      | CASE-DB-9001     | Process_P12_PaymentProcessing    | Throw_PaymentRequest          | 2251799813773238     | 2251799813773246 | send-payment-request        | 2026-10-13 17:08:54.252127+08 | amount=1500.00 method=credit-card alreadyHasSuccessfulPayment=false
+34 | psp-process-payment         | record-payment            | CASE-DB-9001     | Process_P12_PSPPool              | Task_PSP_ProcessPayment       | 2251799813773249     | 2251799813773270 | psp-process-payment         | 2026-10-13 17:08:54.44994+08  | status=success pspReference=PSP-CASE-DB-9001-1791882534442 amount=1500.00 reason=null
+35 | psp-send-status             | duplicate-payment-blocked | CASE-DB-9001     | Process_P12_PSPPool              | EndEvent_PSP_SendStatus       | 2251799813773249     | 2251799813773286 | psp-send-status             | 2026-10-13 17:08:54.47294+08  | caseId 已有成功支付 pspReference=PSP-CASE-DB-9001-1791882534442，本次 pspReference=PSP-CASE-DB-9001-179188253
+36 | send-payment-request        | send-payment-request      | CASE-DB-9001     | Process_P12_PaymentProcessing    | Throw_PaymentRequest          | 2251799813773331     | 2251799813773339 | send-payment-request        | 2026-10-13 17:09:00.270668+08 | amount=1500.00 method=credit-card alreadyHasSuccessfulPayment=true
+37 | psp-process-payment         | duplicate-payment-blocked | CASE-DB-9001     | Process_P12_PSPPool              | Task_PSP_ProcessPayment       | 2251799813773342     | 2251799813773363 | psp-process-payment         | 2026-10-13 17:09:00.415337+08 | caseId 已有成功支付 pspReference=PSP-CASE-DB-9001-1791882534442，本次 pspReference=PSP-CASE-DB-9001-179188254
+38 | psp-send-status             | duplicate-payment-blocked | CASE-DB-9001     | Process_P12_PSPPool              | EndEvent_PSP_SendStatus       | 2251799813773342     | 2251799813773380 | psp-send-status             | 2026-10-13 17:09:00.431336+08 | caseId 已有成功支付 pspReference=PSP-CASE-DB-9001-1791882534442，本次 pspReference=PSP-CASE-DB-9001-179188254
+65 | send-scheduling-request     | upsert-appointment        | APPT-REF-DB-0002 | Process_P3_AppointmentScheduling | Throw_SchedulingRequest       | 2251799813773775     | 2251799813773783 | send-scheduling-request     | 2026-10-13 17:11:33.6609+08   | referralId=REF-DB-0002 slot=null status=null attempts=null
+66 | scheduler-process-request   | upsert-appointment        | APPT-REF-DB-0002 | Process_P3_SchedulingPool        | Task_Scheduler_ProcessRequest | 2251799813773786     | 2251799813773801 | scheduler-process-request   | 2026-10-13 17:11:33.830001+08 | referralId=REF-DB-0002 slot=null status=null attempts=null
+67 | scheduler-process-request   | scheduler-attempt-1       | REF-DB-0002      | Process_P3_SchedulingPool        | Task_Scheduler_ProcessRequest | 2251799813773786     | 2251799813773801 | scheduler-process-request   | 2026-10-13 17:11:33.83197+08  | scheduleStatus=failed slotReference=null failureReason=模拟：第 1 次无可用号源
+68 | scheduler-send-result       | upsert-appointment        | APPT-REF-DB-0002 | Process_P3_SchedulingPool        | EndEvent_Scheduler_SendResult | 2251799813773786     | 2251799813773816 | scheduler-send-result       | 2026-10-13 17:11:33.85297+08  | referralId=REF-DB-0002 slot=null status=null attempts=null
+(data is partially truncated)
+(12 rows, 6 ms)
+=============== STMT 4 (ok=True) ===============
+PERFORMED_AT                  | ACTION             | JOB_TYPE                    | PROCESS_INSTANCE_KEY | DETAILS
+2026-10-13 17:06:21.498626+08 | completeness-check | referral-completeness-check | 2251799813772695     | isComplete=true missingItems=null
+(1 row, 5 ms)
+=============== STMT 5 (ok=True) ===============
+CASE_ID      | AMOUNT  | CURRENCY | METHOD      | PSP_REFERENCE                  | STATUS  | IDEMPOTENCY_KEY                                     | FAILURE_REASON | PAID_AT
+CASE-DB-9001 | 1500.00 | CNY      | credit-card | PSP-CASE-DB-9001-1791882534442 | success | CASE-DB-9001|PSP-CASE-DB-9001-1791882534442|success | null           | 2026-10-13 17:08:54.447961+08
+(1 row, 4 ms)
+=============== STMT 6 (ok=True) ===============
+CASE_ID | SUCCESSFUL_PAYMENT_ROWS
+(0 rows, 7 ms)
+=============== STMT 7 (ok=True) ===============
+PERFORMED_AT                  | JOB_TYPE            | BUSINESS_KEY | DETAILS
+2026-10-13 17:08:54.47294+08  | psp-send-status     | CASE-DB-9001 | caseId 已有成功支付 pspReference=PSP-CASE-DB-9001-1791882534442，本次 pspReference=PSP-CASE-DB-9001-179188253
+2026-10-13 17:09:00.415337+08 | psp-process-payment | CASE-DB-9001 | caseId 已有成功支付 pspReference=PSP-CASE-DB-9001-1791882534442，本次 pspReference=PSP-CASE-DB-9001-179188254
+2026-10-13 17:09:00.431336+08 | psp-send-status     | CASE-DB-9001 | caseId 已有成功支付 pspReference=PSP-CASE-DB-9001-1791882534442，本次 pspReference=PSP-CASE-DB-9001-179188254
+(data is partially truncated)
+(3 rows, 4 ms)
+=============== STMT 8 (ok=True) ===============
+REFERRALS | COMPLETE_REFERRALS | INCOMPLETE_REFERRALS
+1         | 1                  | 0
+(1 row, 5 ms)
+=============== STMT 9 (ok=True) ===============
+CURRENCY | PAYMENTS | TOTAL_AMOUNT | AVG_AMOUNT
+CNY      | 1        | 1500.00      | 1500.000000000000
+(1 row, 4 ms)
+=============== STMT 10 (ok=True) ===============
+FUNDING_SOURCE | STATUS   | CASES | APPROVED_TOTAL
+insurer        | self-pay | 1     | 250.00
+(1 row, 4 ms)
+=============== STMT 11 (ok=True) ===============
+LETTERS | WITHIN_7_DAYS | OVER_DEADLINE
+0       | null          | null
+(1 row, 4 ms)
+=============== STMT 12 (ok=True) ===============
+URGENCY | STATUS | ENQUIRIES
+(0 rows, 3 ms)
+=============== STMT 13 (ok=True) ===============
+USERNAME      | DISPLAY_NAME             | DEPARTMENT      | ROLE        | GROUP_NAME
+consultant01  | Consultant Physician     | Clinical Review | consultant  | hospital-pool
+coordinator01 | Pathway Coordinator      | Management      | management  | management-pool
+finance01     | Finance Officer          | Funding         | finance     | hospital-pool
+gpclinic01    | GP Clinic Contact        | External GP     | external-gp | gp-pool
+psp01         | Payment Service Provider | External PSP    | psp         | psp-pool
+scheduler01   | Booking Team             | Scheduling      | scheduler   | scheduler-pool
+secretary01   | Medical Secretary        | Referral Intake | registrar   | hospital-pool
+secretary01   | Medical Secretary        | Referral Intake | secretary   | hospital-pool
+(8 rows, 4 ms)
+=============== STMT 14 (ok=True) ===============
+APPOINTMENT_ID   | REFERRAL_ID | SLOT_REFERENCE | APPOINTMENT_DATE_TIME | STATUS | NOTIFICATION_CHANNEL | NOTIFICATION_ATTEMPTS | CONFIRMED_AT
+APPT-REF-DB-0002 | REF-DB-0002 | null           | null                  | null   | null                 | null                  | null
+(1 row, 4 ms)
+=============== TOTAL=14 OK=14 FAIL=0 ===============

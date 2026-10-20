@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -22,9 +24,11 @@ public class GpPoolWorkers {
     private static final Logger LOG = LoggerFactory.getLogger(GpPoolWorkers.class);
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public GpPoolWorkers(CamundaClient camundaClient) {
+    public GpPoolWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /**
@@ -43,9 +47,14 @@ public class GpPoolWorkers {
             // 把「已补充的材料」带回医院侧：医院复查时会据此判定材料齐全，补件闭环结束
             String providedItems = Support.nestedStr(variables, "supplementForm", "providedItems", "");
             if (providedItems.isBlank()) {
-                providedItems = Support.str(variables, "providedItems", "补充材料");
+                providedItems = Support.str(variables, "providedItems", "supplementary material");
             }
             variables.put("supplementProvided", providedItems);
+
+            // --- 数据库持久化：外部方补件回传（referral 缺失项清空 + 审计） ---
+            JobContext ctx = JobContext.of(job, "gp-send-supplement");
+            db.recordSupplement(variables, "returned-by-gp", ctx);
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("ReferralSupplementReceived")

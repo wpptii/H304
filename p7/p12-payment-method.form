@@ -2,11 +2,13 @@
   "components": [
     {
       "label": "Amount due",
-      "type": "textfield",
+      "type": "number",
       "id": "Field_paymentForm_amount",
       "key": "paymentForm.amount",
       "validate": {
-        "required": true
+        "required": true,
+        "min": 0,
+        "max": 1000000
       }
     },
     {
@@ -43,7 +45,9 @@
       "key": "paymentForm.cardLast4",
       "description": "Only the last four digits can be entered; the full card number and CVV must not go into the process variables.",
       "validate": {
-        "required": false
+        "required": false,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -52,7 +56,8 @@
       "id": "Field_paymentForm_paymentTokenRef",
       "key": "paymentForm.paymentTokenRef",
       "validate": {
-        "required": false
+        "required": false,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     }
   ],

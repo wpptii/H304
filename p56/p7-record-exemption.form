@@ -1,0 +1,68 @@
+{
+  "components": [
+    {
+      "label": "Category (BR-15: cases not requiring approval must also be recorded)",
+      "values": [
+        {
+          "label": "Self-pay",
+          "value": "self-pay"
+        },
+        {
+          "label": "Fee waiver",
+          "value": "fee-waiver"
+        },
+        {
+          "label": "In-house funding",
+          "value": "hospital-funded"
+        }
+      ],
+      "type": "radio",
+      "id": "Field_exemptionForm_category",
+      "key": "exemptionForm.category",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Self-pay / waiver amount",
+      "type": "number",
+      "id": "Field_exemptionForm_amount",
+      "key": "exemptionForm.amount",
+      "validate": {
+        "required": false,
+        "min": 0,
+        "max": 1000000
+      }
+    },
+    {
+      "label": "Notes (waiver basis / patient notification)",
+      "type": "textarea",
+      "id": "Field_exemptionForm_notes",
+      "key": "exemptionForm.notes",
+      "validate": {
+        "required": false,
+        "maxLength": 1000
+      }
+    },
+    {
+      "label": "Registrant (finance team)",
+      "type": "textfield",
+      "id": "Field_exemptionForm_recordedBy",
+      "key": "exemptionForm.recordedBy",
+      "validate": {
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
+      }
+    }
+  ],
+  "schemaVersion": 19,
+  "id": "p7-record-exemption",
+  "type": "default",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.10.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.51.0"
+  }
+}

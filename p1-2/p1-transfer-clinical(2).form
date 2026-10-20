@@ -29,16 +29,19 @@
       "id": "Field_transferForm_handedOverTo",
       "key": "transferForm.handedOverTo",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
-      "label": "Handover notes (administrative matters, excluding clinical judgment)）",
+      "label": "Handover notes (administrative matters, excluding clinical judgment)",
       "type": "textarea",
       "id": "Field_transferForm_transferNotes",
       "key": "transferForm.transferNotes",
       "validate": {
-        "required": false
+        "required": false,
+        "maxLength": 1000
       }
     },
     {

@@ -2,7 +2,7 @@
   "components": [
     {
       "label": "Appointment time (ISO, for example 2026-07-01T09:30)",
-      "type": "textfield",
+      "type": "datetime",
       "id": "Field_partnerAppointmentForm_appointmentDateTime",
       "key": "partnerAppointmentForm.appointmentDateTime",
       "layout": {
@@ -11,7 +11,8 @@
       },
       "validate": {
         "required": true
-      }
+      },
+      "subtype": "datetime"
     },
     {
       "label": "Location / Department",
@@ -23,7 +24,9 @@
         "columns": null
       },
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -36,7 +39,9 @@
         "columns": null
       },
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     }
   ],

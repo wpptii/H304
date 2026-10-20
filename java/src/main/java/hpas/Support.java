@@ -4,6 +4,7 @@ import io.camunda.client.CamundaClient;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
@@ -19,10 +20,10 @@ public final class Support {
 
     /** 通知方式 -> 实际渠道（BR-11）。 */
     public static final Map<String, String> CHANNEL = Map.of(
-            "paper", "纸质信件（邮寄）",
-            "digital", "数字渠道（短信 / 邮件 / 患者门户）",
-            "translation", "翻译后通知",
-            "representative", "授权代表代收");
+            "paper", "Paper letter (post)",
+            "digital", "Digital channels (SMS / email / patient portal)",
+            "translation", "Translated notification",
+            "representative", "Collected by authorised representative");
 
     /** 可含 null 值的 Map 构造（Map.of 不接受 null）。 */
     public static Map<String, Object> vars(Object... kv) {
@@ -96,6 +97,13 @@ public final class Support {
         }
         try {
             return Instant.parse(t).atZone(ZoneId.systemDefault()).toLocalDate();
+        } catch (Exception ignore) {
+            // 继续尝试其它格式
+        }
+        try {
+            // Camunda form `datetime` fields (subtype datetime) submit a local date-time
+            // such as "2026-10-22T11:00" - no zone, so none of the parsers above accept it.
+            return LocalDateTime.parse(t).toLocalDate();
         } catch (Exception ignore) {
             return null;
         }

@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_HPAS_Descriptive" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.51.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:collaboration id="Collaboration_HPAS_Descriptive">
+    <bpmn:participant id="Participant_Referrer" name="Referrer (GP)">
+      <bpmn:documentation>Referring organisation: a GP practice or another hospital. It triggers the pathway and sends the referral and the supporting documents to the hospital by message flow.</bpmn:documentation>
+    </bpmn:participant>
+    <bpmn:participant id="Participant_Hospital" name="Specialist Hospital Service (HPAS)" processRef="Process_HPAS_Descriptive" />
+    <bpmn:participant id="Participant_Patient" name="Patient">
+      <bpmn:documentation>Patient: the value recipient. Receives the appointment notice and visit information and attends for consultation and treatment as clinically arranged.</bpmn:documentation>
+    </bpmn:participant>
+    <bpmn:messageFlow id="MsgFlow_Referral" name="Referral with supporting documents" sourceRef="Participant_Referrer" targetRef="Task_ReceiveReferral" />
+    <bpmn:messageFlow id="MsgFlow_Notice" name="Appointment notice and visit information" sourceRef="Task_InformPatient" targetRef="Participant_Patient" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_HPAS_Descriptive" name="HPAS Strategic / Descriptive Model: patient value pathway (happy path)" isExecutable="false">
+    <bpmn:documentation>Strategic / descriptive model. Purpose: to communicate and agree with the business how we create value for the patient, what the main stages are and who is responsible for them. Characteristics: highly abstract, deliberately ignoring exceptions and variants and showing only the ideal happy path; loosely defined semantics (not intended to be executable). Three pools in total: referrer (black box, sends the referral), specialist hospital service (this process, with 4 departmental lanes) and patient (black box, receives the appointment notice and visit information); interactions between participants are expressed with 2 message flows. 10 flow nodes: start event Referral received + 8 high-level stage activities (abstract bpmn:task activities, deliberately not distinguishing manual from system work, supported since Camunda 8.2) + end event Patient pathway complete. External services such as the scheduling service, the correspondence service, funders and the PSP are operational-level detail - see hpas-journey.bpmn and the 8 sub-processes.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Descriptive">
+      <bpmn:lane id="Lane_Finance" name="Finance">
+        <bpmn:flowNodeRef>Task_FundingPayment</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Bookings" name="Bookings &#38; Call Handling">
+        <bpmn:flowNodeRef>Task_ArrangeAppointment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_InformPatient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EnquiryFollowUp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_PathwayComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Clinical" name="Consultants &#38; CNS">
+        <bpmn:flowNodeRef>Task_ClinicalReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ConsultationTreatment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ClinicLetter</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ReferralAdmin" name="Referral &#38; Medical Secretaries">
+        <bpmn:flowNodeRef>StartEvent_ReferralReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReceiveReferral</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_ReferralReceived" name="Referral received">
+      <bpmn:outgoing>Flow_01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_ReceiveReferral" name="Receive referral and check completeness">
+      <bpmn:documentation>Stage 1 - the Medical Secretary receives the referral and checks that the supporting documents are complete. The strategic layer does not distinguish variants such as registration and supplement requests. The referrer pool sends the referral and the supporting documents here by message flow.</bpmn:documentation>
+      <bpmn:incoming>Flow_01</bpmn:incoming>
+      <bpmn:outgoing>Flow_02</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ClinicalReview" name="Clinical review and decision">
+      <bpmn:documentation>Stage 2 - the Consultant assesses the referral and decides to accept it (the strategic layer only expresses the ideal path of continuing once accepted).</bpmn:documentation>
+      <bpmn:incoming>Flow_02</bpmn:incoming>
+      <bpmn:outgoing>Flow_03</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ArrangeAppointment" name="Arrange new patient appointment">
+      <bpmn:documentation>Stage 3 - the Outpatient Bookings Team obtains and confirms an appointment through the scheduling service.</bpmn:documentation>
+      <bpmn:incoming>Flow_03</bpmn:incoming>
+      <bpmn:outgoing>Flow_04</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_InformPatient" name="Inform and support the patient">
+      <bpmn:documentation>Stage 4 - the appointment notice is issued according to patient preference, with telephone contact where needed (the strategic layer does not expand the contact attempt variants). A message flow is sent to the patient pool here.</bpmn:documentation>
+      <bpmn:incoming>Flow_04</bpmn:incoming>
+      <bpmn:outgoing>Flow_05</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ConsultationTreatment" name="Consultation, diagnosis and treatment">
+      <bpmn:documentation>Stage 5 - the Consultant and the clinical team complete the consultation and diagnosis and discuss the treatment plan with the patient.</bpmn:documentation>
+      <bpmn:incoming>Flow_05</bpmn:incoming>
+      <bpmn:outgoing>Flow_06</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_FundingPayment" name="Determine funding and take payment">
+      <bpmn:documentation>Stage 6 - the Finance Team determines the funding source (hospital / insurance / funder / self-pay) and handles the charges due.</bpmn:documentation>
+      <bpmn:incoming>Flow_06</bpmn:incoming>
+      <bpmn:outgoing>Flow_07</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ClinicLetter" name="Prepare and distribute clinic letter">
+      <bpmn:documentation>Stage 7 - the Consultant drafts and approves the clinic letter and the Medical Secretary completes the admin check and arranges dispatch.</bpmn:documentation>
+      <bpmn:incoming>Flow_07</bpmn:incoming>
+      <bpmn:outgoing>Flow_08</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_EnquiryFollowUp" name="Handle enquiries and follow-up">
+      <bpmn:documentation>Stage 8 - Call Handling and the clinical team handle patient enquiries and provide ongoing support.</bpmn:documentation>
+      <bpmn:incoming>Flow_08</bpmn:incoming>
+      <bpmn:outgoing>Flow_09</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="EndEvent_PathwayComplete" name="Patient pathway complete">
+      <bpmn:incoming>Flow_09</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_01" sourceRef="StartEvent_ReferralReceived" targetRef="Task_ReceiveReferral" />
+    <bpmn:sequenceFlow id="Flow_02" sourceRef="Task_ReceiveReferral" targetRef="Task_ClinicalReview" />
+    <bpmn:sequenceFlow id="Flow_03" sourceRef="Task_ClinicalReview" targetRef="Task_ArrangeAppointment" />
+    <bpmn:sequenceFlow id="Flow_04" sourceRef="Task_ArrangeAppointment" targetRef="Task_InformPatient" />
+    <bpmn:sequenceFlow id="Flow_05" sourceRef="Task_InformPatient" targetRef="Task_ConsultationTreatment" />
+    <bpmn:sequenceFlow id="Flow_06" sourceRef="Task_ConsultationTreatment" targetRef="Task_FundingPayment" />
+    <bpmn:sequenceFlow id="Flow_07" sourceRef="Task_FundingPayment" targetRef="Task_ClinicLetter" />
+    <bpmn:sequenceFlow id="Flow_08" sourceRef="Task_ClinicLetter" targetRef="Task_EnquiryFollowUp" />
+    <bpmn:sequenceFlow id="Flow_09" sourceRef="Task_EnquiryFollowUp" targetRef="EndEvent_PathwayComplete" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_HPAS_Descriptive">
+    <bpmndi:BPMNPlane id="BPMNPlane_HPAS_Descriptive" bpmnElement="Collaboration_HPAS_Descriptive">
+      <bpmndi:BPMNShape id="Participant_Referrer_di" bpmnElement="Participant_Referrer" isHorizontal="true">
+        <dc:Bounds x="146" y="80" width="2474" height="90" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Hospital_di" bpmnElement="Participant_Hospital" isHorizontal="true">
+        <dc:Bounds x="146" y="230" width="2474" height="440" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_ReferralAdmin_di" bpmnElement="Lane_ReferralAdmin" isHorizontal="true">
+        <dc:Bounds x="176" y="230" width="2444" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Clinical_di" bpmnElement="Lane_Clinical" isHorizontal="true">
+        <dc:Bounds x="176" y="340" width="2444" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Bookings_di" bpmnElement="Lane_Bookings" isHorizontal="true">
+        <dc:Bounds x="176" y="450" width="2444" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Finance_di" bpmnElement="Lane_Finance" isHorizontal="true">
+        <dc:Bounds x="176" y="560" width="2444" height="110" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_ReferralReceived_di" bpmnElement="StartEvent_ReferralReceived">
+        <dc:Bounds x="250" y="267" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="226" y="306" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReceiveReferral_di" bpmnElement="Task_ReceiveReferral">
+        <dc:Bounds x="560" y="250" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ClinicalReview_di" bpmnElement="Task_ClinicalReview">
+        <dc:Bounds x="800" y="360" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ArrangeAppointment_di" bpmnElement="Task_ArrangeAppointment">
+        <dc:Bounds x="1040" y="470" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InformPatient_di" bpmnElement="Task_InformPatient">
+        <dc:Bounds x="1280" y="470" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ConsultationTreatment_di" bpmnElement="Task_ConsultationTreatment">
+        <dc:Bounds x="1520" y="360" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_FundingPayment_di" bpmnElement="Task_FundingPayment">
+        <dc:Bounds x="1760" y="580" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ClinicLetter_di" bpmnElement="Task_ClinicLetter">
+        <dc:Bounds x="2000" y="360" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EnquiryFollowUp_di" bpmnElement="Task_EnquiryFollowUp">
+        <dc:Bounds x="2240" y="470" width="190" height="70" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_PathwayComplete_di" bpmnElement="EndEvent_PathwayComplete">
+        <dc:Bounds x="2510" y="487" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2489" y="522" width="79" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_01_di" bpmnElement="Flow_01">
+        <di:waypoint x="286" y="285" />
+        <di:waypoint x="560" y="285" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_02_di" bpmnElement="Flow_02">
+        <di:waypoint x="750" y="285" />
+        <di:waypoint x="775" y="285" />
+        <di:waypoint x="775" y="395" />
+        <di:waypoint x="800" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03_di" bpmnElement="Flow_03">
+        <di:waypoint x="990" y="395" />
+        <di:waypoint x="1015" y="395" />
+        <di:waypoint x="1015" y="505" />
+        <di:waypoint x="1040" y="505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_04_di" bpmnElement="Flow_04">
+        <di:waypoint x="1230" y="505" />
+        <di:waypoint x="1280" y="505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_05_di" bpmnElement="Flow_05">
+        <di:waypoint x="1470" y="505" />
+        <di:waypoint x="1495" y="505" />
+        <di:waypoint x="1495" y="395" />
+        <di:waypoint x="1520" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_06_di" bpmnElement="Flow_06">
+        <di:waypoint x="1710" y="395" />
+        <di:waypoint x="1735" y="395" />
+        <di:waypoint x="1735" y="615" />
+        <di:waypoint x="1760" y="615" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_07_di" bpmnElement="Flow_07">
+        <di:waypoint x="1950" y="615" />
+        <di:waypoint x="1975" y="615" />
+        <di:waypoint x="1975" y="395" />
+        <di:waypoint x="2000" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_08_di" bpmnElement="Flow_08">
+        <di:waypoint x="2190" y="395" />
+        <di:waypoint x="2215" y="395" />
+        <di:waypoint x="2215" y="505" />
+        <di:waypoint x="2240" y="505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_09_di" bpmnElement="Flow_09">
+        <di:waypoint x="2430" y="505" />
+        <di:waypoint x="2510" y="505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_Patient_di" bpmnElement="Participant_Patient" isHorizontal="true">
+        <dc:Bounds x="146" y="760" width="2474" height="90" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="MsgFlow_Referral_di" bpmnElement="MsgFlow_Referral">
+        <di:waypoint x="655" y="170" />
+        <di:waypoint x="655" y="250" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="686" y="207" width="174" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MsgFlow_Notice_di" bpmnElement="MsgFlow_Notice">
+        <di:waypoint x="1375" y="540" />
+        <di:waypoint x="1375" y="760" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1392" y="693" width="196" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

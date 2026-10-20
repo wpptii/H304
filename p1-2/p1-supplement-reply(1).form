@@ -6,7 +6,8 @@
       "id": "Field_supplementForm_providedItems",
       "key": "supplementForm.providedItems",
       "validate": {
-        "required": true
+        "required": true,
+        "maxLength": 1000
       }
     },
     {
@@ -42,7 +43,9 @@
       "id": "Field_supplementForm_receivedBy",
       "key": "supplementForm.receivedBy",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -51,7 +54,8 @@
       "id": "Field_supplementForm_notes",
       "key": "supplementForm.notes",
       "validate": {
-        "required": false
+        "required": false,
+        "maxLength": 1000
       }
     }
   ],

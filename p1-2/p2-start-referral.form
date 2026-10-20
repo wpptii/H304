@@ -6,20 +6,31 @@
       "id": "Field_referralId",
       "key": "referralId",
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
       "label": "Patient Name",
       "type": "textfield",
       "id": "Field_patientName",
-      "key": "patientName"
+      "key": "patientName",
+      "validate": {
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
+      }
     },
     {
       "label": "Referral Source (GP / Other Organization)",
       "type": "textfield",
       "id": "Field_referralSource",
-      "key": "referralSource"
+      "key": "referralSource",
+      "validate": {
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
+      }
     }
   ],
   "schemaVersion": 19,

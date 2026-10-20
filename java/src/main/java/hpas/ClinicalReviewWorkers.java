@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -13,14 +15,18 @@ import java.util.Map;
  *
  * <p>四个 notify-* / request-supplement 是「消息分支」：由 Worker 投递对应 BPMN 消息，
  * 与范例 MessageHandeller 的做法一致（消息抛出事件挂 taskDefinition，由 Worker publish）。
+ *
+ * <p>数据库：决定本身写 clinical_decision / referral，每个分支都写 process_audit。
  */
 @Component
 public class ClinicalReviewWorkers {
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public ClinicalReviewWorkers(CamundaClient camundaClient) {
+    public ClinicalReviewWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /** 写审计 / 更新状态（BR-04）。 */
@@ -32,6 +38,11 @@ public class ClinicalReviewWorkers {
                 "decision", vars.get("decision"),
                 "reason", vars.get("reason"),
                 "decidedBy", vars.get("decidedBy")));
+
+        // --- 数据库持久化：临床决定 + 转诊状态 ---
+        db.recordClinicalDecision(vars, JobContext.of(job, "clinical-decision-audit"));
+        // --- 持久化结束 ---
+
         return Support.vars(
                 "auditRecorded", true,
                 "auditId", "AUD-" + Support.str(vars, "referralId", "NA") + "-" + System.currentTimeMillis(),
@@ -45,6 +56,7 @@ public class ClinicalReviewWorkers {
         Support.publish(camundaClient, "ReferralAccepted",
                 Support.str(vars, "referralId", ""),
                 Support.vars("referralId", vars.get("referralId")));
+        auditBranch(job, vars, "notify-scheduling-team", "ReferralAccepted");
         return Support.vars("messageSent", true, "messageName", "ReferralAccepted", "sentAt", Support.stamp());
     }
 
@@ -55,6 +67,7 @@ public class ClinicalReviewWorkers {
         Support.publish(camundaClient, "ReferralRejected",
                 Support.str(vars, "referralId", ""),
                 Support.vars("referralId", vars.get("referralId"), "reason", vars.get("reason")));
+        auditBranch(job, vars, "notify-referral-institution", "ReferralRejected");
         return Support.vars("messageSent", true, "messageName", "ReferralRejected", "sentAt", Support.stamp());
     }
 
@@ -65,6 +78,8 @@ public class ClinicalReviewWorkers {
         Support.publish(camundaClient, "SupplementRequested",
                 Support.str(vars, "referralId", ""),
                 Support.vars("referralId", vars.get("referralId"), "missingItems", vars.get("missingItems")));
+        JobContext ctx = JobContext.of(job, "request-supplement");
+        db.recordSupplement(vars, "requested-by-clinical-review", ctx);
         return Support.vars("messageSent", true, "messageName", "SupplementRequested", "sentAt", Support.stamp());
     }
 
@@ -75,6 +90,15 @@ public class ClinicalReviewWorkers {
         Support.publish(camundaClient, "ReferredToOtherHospital",
                 Support.str(vars, "referralId", ""),
                 Support.vars("referralId", vars.get("referralId")));
+        auditBranch(job, vars, "notify-other-hospital", "ReferredToOtherHospital");
         return Support.vars("messageSent", true, "messageName", "ReferredToOtherHospital", "sentAt", Support.stamp());
+    }
+
+    /** 通知分支的审计：更新转诊状态 + 落一行 process_audit。 */
+    private void auditBranch(ActivatedJob job, Map<String, Object> vars, String action, String messageName) {
+        JobContext ctx = JobContext.of(job, action);
+        db.recordReferral(vars, null, ctx);
+        db.audit(ctx, action, Support.str(vars, "referralId", null),
+                "published " + messageName + " reason=" + vars.get("reason"));
     }
 }

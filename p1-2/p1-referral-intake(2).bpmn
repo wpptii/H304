@@ -14,12 +14,13 @@
     <bpmn:messageFlow id="MessageFlow_SupplementReply" name="Supplementary response" sourceRef="EndEvent_GP_SendSupplement" targetRef="Catch_SupplementReply" />
   </bpmn:collaboration>
   <bpmn:process id="Process_P1_ReferralIntake" name="P1 Referral Reception and Integrity Check (Hospital)" isExecutable="true">
-    <bpmn:documentation>选择 1：P1 转诊接收与完整性核查。Start → User Task「登记转诊」Form → External Worker「检查材料完整性」topic: referral-completeness-check → XOR 是否完整？否 → 消息抛出「请求补件」给外部 Pool（GP / 其他医院）→ 消息捕获「补件回复」→ 回到完整性检查；是 → User Task「确认移交临床审核」Form → External Worker 发送移交通知 → End。规则：BR-01 医疗秘书不得临床评估；BR-02 完整性后转顾问医师。</bpmn:documentation>
+    <bpmn:documentation>Option 1: P1 Referral Reception and Integrity Check. Skeleton: Start -&gt; User Task "Register and refer" Form -&gt; External Worker "Check if the materials are complete" topic: referral-completeness-check -&gt; XOR Is it complete? No -&gt; Message Throw "Request for additional documents" to the external pool (GP / other hospital) -&gt; Message Catch "Supplementary response" -&gt; back to the completeness check; Yes -&gt; User Task "Confirm handover for clinical review" Form -&gt; External Worker sends the handover notice -&gt; End. Rules: BR-01 the medical secretary must not perform clinical assessment; BR-02 hand over to the consultant physician after completeness.</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_P1">
       <bpmn:lane id="Lane_System" name="System Check">
-        <bpmn:flowNodeRef>Task_CompletenessCheck</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Throw_RequestSupplement</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Catch_SupplementReply</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CompletenessCheck</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_MergeCompleteness</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Secretary" name="Medical Secretary">
         <bpmn:flowNodeRef>Task_RegisterReferral</bpmn:flowNodeRef>
@@ -31,7 +32,7 @@
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:userTask id="Task_RegisterReferral" name="Register and refer">
-      <bpmn:documentation>BR-01：医疗秘书登记转诊来源、患者信息与随附材料清单，只做行政登记，不进行临床评估。</bpmn:documentation>
+      <bpmn:documentation>BR-01: The medical secretary registers the referral source, the patient information and the list of accompanying materials; this is an administrative registration only and no clinical assessment is performed.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p1-register-referral" />
         <zeebe:assignmentDefinition candidateGroups="medical-secretaries" />
@@ -40,31 +41,13 @@
       <bpmn:incoming>Flow_Start_To_Register</bpmn:incoming>
       <bpmn:outgoing>Flow_Register_To_Check</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:serviceTask id="Task_CompletenessCheck" name="Check if the materials are complete">
-      <bpmn:documentation>External Worker：自动检查附件与必填字段是否齐全，写回 isComplete 与 missingItems。Job type（topic）= referral-completeness-check。BR-02：完整性通过后才移交顾问医师。</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="referral-completeness-check" retries="3" />
-        <zeebe:taskHeaders>
-          <zeebe:header key="check" value="referral-completeness-rules" />
-        </zeebe:taskHeaders>
-        <zeebe:ioMapping>
-          <zeebe:input source="= referralId" target="referralId" />
-          <zeebe:input source="= registerForm.referralSource" target="referralSource" />
-          <zeebe:input source="= registerForm.attachments" target="attachments" />
-          <zeebe:input source="= registerForm.missingMaterials" target="missingMaterials" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Register_To_Check</bpmn:incoming>
-      <bpmn:incoming>Flow_Supplement_To_Check</bpmn:incoming>
-      <bpmn:outgoing>Flow_Check_To_Gateway</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="Gateway_Complete" name="Is it complete？" default="Flow_Incomplete">
+    <bpmn:exclusiveGateway id="Gateway_Complete" name="Is it complete?" default="Flow_Incomplete">
       <bpmn:incoming>Flow_Check_To_Gateway</bpmn:incoming>
       <bpmn:outgoing>Flow_Complete</bpmn:outgoing>
       <bpmn:outgoing>Flow_Incomplete</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:intermediateThrowEvent id="Throw_RequestSupplement" name="Request for additional documents">
-      <bpmn:documentation>Message：向外部 Pool（GP / 其他医院）投递 ReferralSupplementRequested。Job type = send-supplement-request。</bpmn:documentation>
+      <bpmn:documentation>Message: Deliver ReferralSupplementRequested to the external pool (GP / other hospital). Job type = send-supplement-request.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-supplement-request" retries="3" />
         <zeebe:taskHeaders>
@@ -76,13 +59,13 @@
       <bpmn:messageEventDefinition id="MessageEventDefinition_SupplementRequested" />
     </bpmn:intermediateThrowEvent>
     <bpmn:intermediateCatchEvent id="Catch_SupplementReply" name="Supplementary response">
-      <bpmn:documentation>等待外部 Pool 回传 ReferralSupplementReceived（关联键 = referralId，定义在 bpmn:message 元素上）。收到后回到「检查材料完整性」重新核查。</bpmn:documentation>
+      <bpmn:documentation>Wait for the external pool to return ReferralSupplementReceived (correlation key = referralId, defined on the bpmn:message element). On receipt, return to "Check if the materials are complete" and recheck.</bpmn:documentation>
       <bpmn:incoming>Flow_Throw_To_Catch</bpmn:incoming>
       <bpmn:outgoing>Flow_Supplement_To_Check</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_SupplementReceived" messageRef="Message_SupplementReceived" />
     </bpmn:intermediateCatchEvent>
     <bpmn:userTask id="Task_TransferToClinical" name="Confirm handover for clinical review">
-      <bpmn:documentation>BR-02：材料完整后由医疗秘书登记并移交给顾问医师做临床审核；秘书不评估临床适宜性。</bpmn:documentation>
+      <bpmn:documentation>BR-02: Once the materials are complete, the medical secretary registers and hands the referral over to the consultant physician for clinical review; the secretary does not assess clinical appropriateness.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p1-transfer-clinical" />
         <zeebe:assignmentDefinition candidateGroups="medical-secretaries" />
@@ -92,7 +75,7 @@
       <bpmn:outgoing>Flow_Transfer_To_Confirm</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="Task_ConfirmTransfer" name="Send relocation notice">
-      <bpmn:documentation>External Worker：向顾问医师队列发出「已移交临床审核」通知并记录移交时间（BR-02）。Job type（topic）= notify-clinical-review。</bpmn:documentation>
+      <bpmn:documentation>External Worker: Send the "handed over for clinical review" notification to the consultant physician queue and record the handover time (BR-02). Job type (topic) = notify-clinical-review.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="notify-clinical-review" retries="3" />
         <zeebe:ioMapping>
@@ -107,8 +90,8 @@
       <bpmn:incoming>Flow_Confirm_To_End</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_Start_To_Register" sourceRef="StartEvent_ReferralArrived" targetRef="Task_RegisterReferral" />
-    <bpmn:sequenceFlow id="Flow_Register_To_Check" sourceRef="Task_RegisterReferral" targetRef="Task_CompletenessCheck" />
-    <bpmn:sequenceFlow id="Flow_Supplement_To_Check" name="Additional documents received: rechecking" sourceRef="Catch_SupplementReply" targetRef="Task_CompletenessCheck" />
+    <bpmn:sequenceFlow id="Flow_Register_To_Check" sourceRef="Task_RegisterReferral" targetRef="Gateway_MergeCompleteness" />
+    <bpmn:sequenceFlow id="Flow_Supplement_To_Check" name="Additional documents received: rechecking" sourceRef="Catch_SupplementReply" targetRef="Gateway_MergeCompleteness" />
     <bpmn:sequenceFlow id="Flow_Check_To_Gateway" sourceRef="Task_CompletenessCheck" targetRef="Gateway_Complete" />
     <bpmn:sequenceFlow id="Flow_Complete" name="ye&#39;s" sourceRef="Gateway_Complete" targetRef="Task_TransferToClinical">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= isComplete = true</bpmn:conditionExpression>
@@ -123,9 +106,32 @@
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_Start_To_Register</bpmn:outgoing>
     </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_Merge_To_Completeness" name="Merged: proceed to the completeness check" sourceRef="Gateway_MergeCompleteness" targetRef="Task_CompletenessCheck" />
+    <bpmn:serviceTask id="Task_CompletenessCheck" name="Check if the materials are complete">
+      <bpmn:documentation>External Worker: Automatically check that attachments and mandatory fields are complete and write back isComplete and missingItems. Job type (topic) = referral-completeness-check. BR-02: hand over to the consultant physician only after completeness has passed.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="referral-completeness-check" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="check" value="referral-completeness-rules" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="= referralId" target="referralId" />
+          <zeebe:input source="= registerForm.referralSource" target="referralSource" />
+          <zeebe:input source="= registerForm.attachments" target="attachments" />
+          <zeebe:input source="= registerForm.missingMaterials" target="missingMaterials" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Merge_To_Completeness</bpmn:incoming>
+      <bpmn:outgoing>Flow_Check_To_Gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_MergeCompleteness" name="Supplement loop merge: recheck">
+      <bpmn:incoming>Flow_Register_To_Check</bpmn:incoming>
+      <bpmn:incoming>Flow_Supplement_To_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_Merge_To_Completeness</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
   </bpmn:process>
   <bpmn:process id="Process_P1_GPPool" name="P1 Referral Reception and Integrity Check (Hospital)" isExecutable="true">
-    <bpmn:documentation>外部 Pool：收到医院的补件请求后，由 GP / 其他医院补充材料，并把材料回传给医院（消息 ReferralSupplementReceived）。</bpmn:documentation>
+    <bpmn:documentation>External pool: On receiving the hospital's supplement request, the GP / other hospital adds the materials and returns them to the hospital (message ReferralSupplementReceived).</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_P1_GP">
       <bpmn:lane id="Lane_GP" name="GP / Other Hospitals">
         <bpmn:flowNodeRef>StartEvent_GP_SupplementRequested</bpmn:flowNodeRef>
@@ -138,17 +144,17 @@
       <bpmn:messageEventDefinition id="MessageEventDefinition_GP_Start" messageRef="Message_SupplementRequested" />
     </bpmn:startEvent>
     <bpmn:userTask id="Task_GP_ProvideSupplement" name="Supplementary materials">
-      <bpmn:documentation>外部机构补齐医院要求的材料，登记补充项目与回复渠道。</bpmn:documentation>
+      <bpmn:documentation>The external organisation supplies the materials requested by the hospital and records the supplemented items and the reply channel.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p1-gp-supplement" />
-        <zeebe:assignmentDefinition candidateGroups="gp-practices" />
+        <zeebe:assignmentDefinition candidateGroups="referring-practices" />
         <zeebe:userTask />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_GP_Start_To_Task</bpmn:incoming>
       <bpmn:outgoing>Flow_GP_Task_To_End</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:endEvent id="EndEvent_GP_SendSupplement" name="Send back additional materials">
-      <bpmn:documentation>Message：投递 ReferralSupplementReceived（关联键 = referralId）。Job type = gp-send-supplement。</bpmn:documentation>
+      <bpmn:documentation>Message: Deliver ReferralSupplementReceived (correlation key = referralId). Job type = gp-send-supplement.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="gp-send-supplement" retries="3" />
       </bpmn:extensionElements>
@@ -174,10 +180,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_RegisterReferral_di" bpmnElement="Task_RegisterReferral">
         <dc:Bounds x="300" y="230" width="220" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_CompletenessCheck_di" bpmnElement="Task_CompletenessCheck">
-        <dc:Bounds x="300" y="500" width="220" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_Complete_di" bpmnElement="Gateway_Complete" isMarkerVisible="true">
@@ -218,29 +220,38 @@
           <dc:Bounds x="203" y="295" width="74" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CompletenessCheck_di" bpmnElement="Task_CompletenessCheck">
+        <dc:Bounds x="420" y="500" width="220" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_MergeCompleteness_di" bpmnElement="Gateway_MergeCompleteness" isMarkerVisible="true">
+        <dc:Bounds x="252" y="492" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="180" y="476" width="83" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_To_Register_di" bpmnElement="Flow_Start_To_Register">
         <di:waypoint x="258" y="270" />
         <di:waypoint x="300" y="270" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Register_To_Check_di" bpmnElement="Flow_Register_To_Check">
         <di:waypoint x="410" y="310" />
-        <di:waypoint x="410" y="500" />
+        <di:waypoint x="410" y="460" />
+        <di:waypoint x="270" y="460" />
+        <di:waypoint x="270" y="492" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Supplement_To_Check_di" bpmnElement="Flow_Supplement_To_Check">
-        <di:waypoint x="1018" y="522" />
-        <di:waypoint x="1018" y="510" />
-        <di:waypoint x="1120" y="510" />
-        <di:waypoint x="1120" y="640" />
-        <di:waypoint x="410" y="640" />
-        <di:waypoint x="410" y="580" />
+        <di:waypoint x="1018" y="558" />
+        <di:waypoint x="1018" y="640" />
+        <di:waypoint x="270" y="640" />
+        <di:waypoint x="270" y="528" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="943" y="583" width="54" height="53" />
+          <dc:Bounds x="861" y="583" width="54" height="53" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Check_To_Gateway_di" bpmnElement="Flow_Check_To_Gateway">
-        <di:waypoint x="520" y="540" />
-        <di:waypoint x="600" y="540" />
-        <di:waypoint x="600" y="270" />
+        <di:waypoint x="590" y="500" />
+        <di:waypoint x="590" y="270" />
         <di:waypoint x="620" y="270" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Complete_di" bpmnElement="Flow_Complete">
@@ -269,6 +280,13 @@
       <bpmndi:BPMNEdge id="Flow_Confirm_To_End_di" bpmnElement="Flow_Confirm_To_End">
         <di:waypoint x="1260" y="270" />
         <di:waypoint x="1320" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Merge_To_Completeness_di" bpmnElement="Flow_Merge_To_Completeness">
+        <di:waypoint x="288" y="510" />
+        <di:waypoint x="420" y="510" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="312" y="483" width="84" height="53" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Participant_GP_di" bpmnElement="Participant_GP" isHorizontal="true">
         <dc:Bounds x="140" y="700" width="1440" height="180" />

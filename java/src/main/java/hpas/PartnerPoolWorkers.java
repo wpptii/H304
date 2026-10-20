@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -22,9 +24,11 @@ public class PartnerPoolWorkers {
     private static final Logger LOG = LoggerFactory.getLogger(PartnerPoolWorkers.class);
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public PartnerPoolWorkers(CamundaClient camundaClient) {
+    public PartnerPoolWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /** 消息结束事件「回传补充材料」的 Worker。 */
@@ -35,8 +39,13 @@ public class PartnerPoolWorkers {
             Map<String, Object> vars = job.getVariablesAsMap();
             String referralId = Support.str(vars, "referralId", "");
 
-            String provided = Support.nestedStr(vars, "partnerSupplementForm", "providedItems", "补充材料");
+            String provided = Support.nestedStr(vars, "partnerSupplementForm", "providedItems", "supplementary material");
             vars.put("supplementProvided", provided);
+
+            // --- 数据库持久化：合作方补件回传 ---
+            JobContext ctx = JobContext.of(job, "partner-send-supplement");
+            db.recordSupplement(vars, "returned-by-partner", ctx);
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("SupplementReceived")

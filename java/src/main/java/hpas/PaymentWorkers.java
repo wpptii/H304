@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -10,14 +12,19 @@ import java.util.Map;
 /**
  * 选择 7：P12 支付处理
  * 对应模型 p12-payment-processing.bpmn（成功 / 失败 / 重复三条分支）。
+ *
+ * <p>数据库：payment 表用 psp_reference 唯一 + 「同一 caseId 只能有一笔成功支付」的约束
+ * 做重复扣款防护（{@link PersistenceService#recordPayment}）。
  */
 @Component
 public class PaymentWorkers {
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public PaymentWorkers(CamundaClient camundaClient) {
+    public PaymentWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /**
@@ -38,6 +45,14 @@ public class PaymentWorkers {
             vars.put("paymentTokenRef", Support.nestedStr(vars, "paymentForm", "paymentTokenRef", ""));
             vars.put("amount", Support.nestedStr(vars, "paymentForm", "amount", ""));
             vars.put("paymentMethod", Support.nestedStr(vars, "paymentForm", "paymentMethod", ""));
+
+            // --- 数据库持久化：发起支付前先检查是否已有成功支付（重复扣款防护） ---
+            JobContext ctx = JobContext.of(job, "send-payment-request");
+            boolean alreadyPaid = db.hasSuccessfulPayment(caseId);
+            db.audit(ctx, "send-payment-request", caseId,
+                    "amount=" + vars.get("amount") + " method=" + vars.get("paymentMethod")
+                            + " alreadyHasSuccessfulPayment=" + alreadyPaid);
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("PaymentRequested")
@@ -74,9 +89,17 @@ public class PaymentWorkers {
                 "pspReference", vars.get("pspReference"),
                 "action", action));
 
-        return Support.vars(
+        Map<String, Object> result = Support.vars(
                 "paymentRetryOutcome", "cancel".equals(action) ? "cancelled" : "retried",
                 "retriedAt", Support.stamp());
+
+        // --- 数据库持久化：重试 / 取消（cancelled 会作为一条痕迹写入 payment 表） ---
+        Map<String, Object> merged = new java.util.LinkedHashMap<>(vars);
+        merged.putAll(result);
+        db.recordPayment(merged, JobContext.of(job, "payment-retry"));
+        // --- 持久化结束 ---
+
+        return result;
     }
 
     /** Message：通知治疗预约团队（BR-19 只有支付成功才确认预约）。 */
@@ -89,6 +112,14 @@ public class PaymentWorkers {
                         "caseId", vars.get("caseId"),
                         "pspReference", vars.get("pspReference"),
                         "amount", vars.get("amount")));
+
+        // --- 数据库持久化：最终支付结论（重复成功会被拦住并留痕） ---
+        String outcome = db.recordPayment(vars, JobContext.of(job, "notify-care-team"));
+        Support.log("notify-care-team-persistence", Support.vars(
+                "caseId", vars.get("caseId"), "paymentStatus", vars.get("paymentStatus"),
+                "dbOutcome", outcome));
+        // --- 持久化结束 ---
+
         return Support.vars("careTeamNotified", true, "careTeamNotifiedAt", Support.stamp());
     }
 }

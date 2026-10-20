@@ -6,16 +6,19 @@
       "id": "Field_recordForm_pspReference",
       "key": "recordForm.pspReference",
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
       "label": "Amount Received",
-      "type": "textfield",
+      "type": "number",
       "id": "Field_recordForm_paidAmount",
       "key": "recordForm.paidAmount",
       "validate": {
-        "required": true
+        "required": true,
+        "min": 0,
+        "max": 1000000
       }
     },
     {
@@ -31,7 +34,9 @@
       "id": "Field_recordForm_recordedBy",
       "key": "recordForm.recordedBy",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     }
   ],

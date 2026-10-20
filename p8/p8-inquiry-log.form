@@ -29,7 +29,8 @@
       "id": "Field_enquiryForm_content",
       "key": "enquiryForm.content",
       "validate": {
-        "required": true
+        "required": true,
+        "maxLength": 1000
       }
     },
     {
@@ -37,13 +38,21 @@
       "type": "textfield",
       "id": "Field_enquiryForm_urgentKeywords",
       "key": "enquiryForm.urgentKeywords",
-      "description": "For the enquiry-triage Worker to judge urgency; blank means no obvious urgent signs"
+      "description": "For the enquiry-triage Worker to judge urgency; blank means no obvious urgent signs",
+      "validate": {
+        "minLength": 2,
+        "maxLength": 80
+      }
     },
     {
       "label": "Incoming channels (phone / portal / email…)",
       "type": "textfield",
       "id": "Field_enquiryForm_channel",
-      "key": "enquiryForm.channel"
+      "key": "enquiryForm.channel",
+      "validate": {
+        "minLength": 2,
+        "maxLength": 80
+      }
     }
   ],
   "schemaVersion": 19,

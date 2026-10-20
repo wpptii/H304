@@ -6,7 +6,9 @@
       "id": "Field_requestForm_department",
       "key": "requestForm.department",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -38,7 +40,9 @@
       "id": "Field_requestForm_preferredWindow",
       "key": "requestForm.preferredWindow",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -70,7 +74,8 @@
       "id": "Field_requestForm_notes",
       "key": "requestForm.notes",
       "validate": {
-        "required": false
+        "required": false,
+        "maxLength": 1000
       }
     }
   ],

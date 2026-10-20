@@ -9,7 +9,7 @@
     <bpmn:messageFlow id="MessageFlow_ToClinical" name="Transfer to clinical consultation" sourceRef="Task_RouteToClinical" targetRef="StartEvent_Ext_ClinicalInquiry" />
   </bpmn:collaboration>
   <bpmn:process id="Process_P8_InquiryRouting" name="Option 8: Patient Inquiry Handling and Routing" isExecutable="true">
-    <bpmn:documentation>选择 8：患者咨询处理与路由。骨架：Start Message「患者咨询到达」→ User Task「记录并分类咨询」Form（类型 / 内容 / 紧急关键词）→ External Worker「初步分类/紧急度建议」topic: enquiry-triage → XOR 类型：简单行政 → User Task「直接回答」Form → End；财务 → Message 转财务 Pool → 等待处理 → End；临床 → Message 转 CNS/临床 Pool，紧急则高亮 → End。规则：BR-30、BR-31、BR-32、OQ-01。亮点：多 Pool / 多消息路由。</bpmn:documentation>
+    <bpmn:documentation>Option 8: Patient Enquiry Handling and Routing. Skeleton: Start Message "Patient consultation has arrived" -> User Task "Record and categorize inquiries" Form (type / content / urgent keywords) -> External Worker "Preliminary Classification / Urgency Suggestions" topic: enquiry-triage -> XOR Type: simple administration -> User Task "Answer directly" Form -> End; finance -> Message to the finance pool -> wait for processing -> End; clinical -> Message to the CNS / clinical pool, highlighted when urgent -> End. Rules: BR-30, BR-31, BR-32, OQ-01. Highlight: multi-pool / multi-message routing.</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_P8">
       <bpmn:lane id="Lane_CallHandling" name="Call Handling">
         <bpmn:flowNodeRef>StartEvent_InquiryReceived</bpmn:flowNodeRef>
@@ -33,16 +33,16 @@
     <bpmn:sequenceFlow id="Flow_Record_To_Triage" sourceRef="Task_RecordAndClassify" targetRef="Task_TriageSuggestion" />
     <bpmn:sequenceFlow id="Flow_Triage_To_Gateway" sourceRef="Task_TriageSuggestion" targetRef="Gateway_InquiryType" />
     <bpmn:sequenceFlow id="Flow_Type_Simple" name="Simple administration" sourceRef="Gateway_InquiryType" targetRef="Task_AnswerSimple">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm.inquiryType = "simple"</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm != null and enquiryForm.inquiryType = "simple"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Type_Finance" name="Finance" sourceRef="Gateway_InquiryType" targetRef="Task_RouteToFinance">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm.inquiryType = "finance"</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm != null and enquiryForm.inquiryType = "finance"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Type_Clinical" name="clinical" sourceRef="Gateway_InquiryType" targetRef="Task_RouteToClinical">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm.inquiryType = "clinical"</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= enquiryForm != null and enquiryForm.inquiryType = "clinical"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:userTask id="Task_AnswerSimple" name="Answer directly">
-      <bpmn:documentation>BR-32：简单行政类咨询由呼叫处理团队直接答复患者并记录答复内容。</bpmn:documentation>
+      <bpmn:documentation>BR-32: Simple administrative enquiries are answered directly to the patient by the call handling team, recording the answer given.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p8-simple-answer" />
         <zeebe:assignmentDefinition candidateGroups="call-handling" />
@@ -57,7 +57,7 @@
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_Finance_To_Await" sourceRef="Task_RouteToFinance" targetRef="Task_AwaitFinance" />
     <bpmn:serviceTask id="Task_AwaitFinance" name="Pending">
-      <bpmn:documentation>等待财务 Pool 处理完毕并回执（OQ-01：跨 Pool 处理时限按运营要求约定）。Job type（topic）= await-finance-response。</bpmn:documentation>
+      <bpmn:documentation>Wait for the finance pool to finish processing and reply (OQ-01: the cross-pool processing deadline is agreed according to operational requirements). Job type (topic) = await-finance-response.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="await-finance-response" retries="3" />
         <zeebe:ioMapping>
@@ -72,7 +72,7 @@
       <bpmn:incoming>Flow_Await_To_End</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:serviceTask id="Task_RouteToClinical" name="Transfer to CNS / Clinical Pool">
-      <bpmn:documentation>Message：向 CNS / 临床 Pool 投递 InquiryRoutedToClinical，并带上紧急度（urgency=urgent 时由接收方高亮处理）。Job type（topic）= route-to-clinical。BR-31：紧急关键词必须随消息传递。</bpmn:documentation>
+      <bpmn:documentation>Message: Deliver InquiryRoutedToClinical to the CNS / clinical pool, carrying the urgency (when urgency=urgent the recipient highlights it). Job type (topic) = route-to-clinical. BR-31: urgent keywords must be carried with the message.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="route-to-clinical" retries="3" />
         <zeebe:taskHeaders>
@@ -101,7 +101,7 @@
       <bpmn:outgoing>Flow_Start_To_Record</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:userTask id="Task_RecordAndClassify" name="Record and categorize inquiries">
-      <bpmn:documentation>BR-30：呼叫处理团队记录咨询内容并选择类型（简单行政 / 财务 / 临床），登记紧急关键词。</bpmn:documentation>
+      <bpmn:documentation>BR-30: The call handling team records the enquiry content and selects the type (simple administration / finance / clinical), registering the urgent keywords.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p8-inquiry-log" />
         <zeebe:assignmentDefinition candidateGroups="call-handling" />
@@ -111,7 +111,7 @@
       <bpmn:outgoing>Flow_Record_To_Triage</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="Task_TriageSuggestion" name="Preliminary Classification / Urgency Suggestions">
-      <bpmn:documentation>External Worker：根据咨询类型与紧急关键词给出初步分类与紧急度建议（BR-31）。Job type（topic）= enquiry-triage。写回 triageUrgency（routine / urgent）与 triageNote。</bpmn:documentation>
+      <bpmn:documentation>External Worker: Based on the enquiry type and the urgent keywords, produce the preliminary classification and urgency suggestion (BR-31). Job type (topic) = enquiry-triage. Writes back triageUrgency (routine / urgent) and triageNote.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="enquiry-triage" retries="3" />
         <zeebe:taskHeaders>
@@ -134,7 +134,7 @@
       <bpmn:outgoing>Flow_Type_Clinical</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="Task_RouteToFinance" name="Transfer to finance pool">
-      <bpmn:documentation>Message：向财务 Pool 投递 InquiryRoutedToFinance。Job type（topic）= route-to-finance。BR-30：财务类咨询不得由呼叫处理团队直接答复。</bpmn:documentation>
+      <bpmn:documentation>Message: Deliver InquiryRoutedToFinance to the finance pool. Job type (topic) = route-to-finance. BR-30: financial enquiries must not be answered directly by the call handling team.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="route-to-finance" retries="3" />
         <zeebe:taskHeaders>
@@ -150,8 +150,8 @@
       <bpmn:outgoing>Flow_Finance_To_Await</bpmn:outgoing>
     </bpmn:serviceTask>
   </bpmn:process>
-  <bpmn:process id="Process_P8_ExternalPool" name="选择 8：患者咨询处理与路由（财务 / CNS 临床）" isExecutable="true">
-    <bpmn:documentation>外部 Pool：分别接收「转财务」与「转临床」两条消息；临床分支带 urgency，紧急时高亮处理。</bpmn:documentation>
+  <bpmn:process id="Process_P8_ExternalPool" name="Option 8: Patient Enquiry Handling and Routing (Finance / CNS Clinical)" isExecutable="true">
+    <bpmn:documentation>External pool: Receives the two messages "transfer to finance" and "transfer to clinical" separately; the clinical branch carries urgency and is highlighted when urgent.</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_P8_External">
       <bpmn:lane id="Lane_ExtFinance" name="Finance">
         <bpmn:flowNodeRef>StartEvent_Ext_FinanceInquiry</bpmn:flowNodeRef>
@@ -170,7 +170,7 @@
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_ExtFinance_Start_To_Task" sourceRef="StartEvent_Ext_FinanceInquiry" targetRef="Task_Ext_FinanceHandle" />
     <bpmn:userTask id="Task_Ext_FinanceHandle" name="Financial handling advice">
-      <bpmn:documentation>财务团队处理费用类咨询并登记答复与金额说明。</bpmn:documentation>
+      <bpmn:documentation>The finance team handles cost-related enquiries and records the reply and the amount explanation.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p8-finance-action" />
         <zeebe:assignmentDefinition candidateGroups="finance-team" />
@@ -189,7 +189,7 @@
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_ExtClinical_Start_To_Task" sourceRef="StartEvent_Ext_ClinicalInquiry" targetRef="Task_Ext_ClinicalHandle" />
     <bpmn:userTask id="Task_Ext_ClinicalHandle" name="Clinical handling consultation (highlight if urgent)">
-      <bpmn:documentation>BR-31：CNS / 临床团队处理咨询；消息携带 urgency=urgent 时高亮优先处理。</bpmn:documentation>
+      <bpmn:documentation>BR-31: The CNS / clinical team handles the enquiry; when the message carries urgency=urgent it is highlighted for priority handling.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p8-clinical-action" />
         <zeebe:assignmentDefinition candidateGroups="clinical-team" />

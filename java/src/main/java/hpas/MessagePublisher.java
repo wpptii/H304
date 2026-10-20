@@ -55,7 +55,7 @@ public class MessagePublisher implements ApplicationRunner {
         if (messageName == null || messageName.isBlank()) {
             Support.log("publisher", Support.vars(
                     "status", "idle",
-                    "hint", "未设置 publish.message，仅启动 Worker。发消息见 README 第 4 节"));
+                    "hint", "publish.message is not set; starting workers only. See README section 4 to publish a message"));
             return;
         }
 
@@ -87,7 +87,7 @@ public class MessagePublisher implements ApplicationRunner {
                     "messageName", messageName,
                     "correlationKey", correlationKey,
                     "error", String.valueOf(e.getMessage()),
-                    "hint", "确认流程实例已到达对应捕获事件，且关联键与业务号一致"));
+                    "hint", "Check that the process instance has reached the matching catch event and that the correlation key matches the business reference"));
         }
 
         if (exitAfterPublish) {

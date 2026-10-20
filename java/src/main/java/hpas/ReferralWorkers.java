@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -14,6 +16,9 @@ import java.util.Map;
 /**
  * 选择 1：P1 转诊接收与完整性核查（医院 Pool）
  * 对应模型 p1-referral-intake.bpmn —— 双 Pool 结构，外部方见 {@link GpPoolWorkers}。
+ *
+ * <p>数据库：{@link PersistenceService} 把每一步的结论落到 referral / patient / process_audit，
+ * 写库失败只记日志，绝不改变作业结果（方法返回的 Map 与加库之前完全一致）。
  */
 @Component
 public class ReferralWorkers {
@@ -21,12 +26,14 @@ public class ReferralWorkers {
     private static final Logger LOG = LoggerFactory.getLogger(ReferralWorkers.class);
 
     /** 演示用：强制判定不完整时使用的缺失项。 */
-    private static final List<String> SIMULATED_MISSING_ITEMS = List.of("检查结果", "既往史");
+    private static final List<String> SIMULATED_MISSING_ITEMS = List.of("test results", "medical history");
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public ReferralWorkers(CamundaClient camundaClient) {
+    public ReferralWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /**
@@ -44,7 +51,7 @@ public class ReferralWorkers {
 
         List<String> missingItems = new ArrayList<>();
         if (!missingText.isBlank()) {
-            for (String s : missingText.split("[,，;；\\n]+")) {
+            for (String s : missingText.split("[,\uFF0C;\uFF1B\\n]+")) {
                 if (!s.isBlank()) {
                     missingItems.add(s.trim());
                 }
@@ -69,13 +76,17 @@ public class ReferralWorkers {
 
         LOG.info("referral-completeness-check {} -> isComplete={}", vars.get("referralId"), isComplete);
 
+        // --- 数据库持久化（附加副作用；失败不影响上面的返回结果） ---
+        db.recordCompletenessCheck(vars, JobContext.of(job, "referral-completeness-check"));
+        // --- 持久化结束 ---
+
         return Support.vars(
                 "isComplete", isComplete,
                 "missingItems", missingItems,
                 "checkedAt", Support.stamp(),
                 "checkNote", isComplete
-                        ? (supplemented ? "补件已到齐，移交临床审核" : "材料齐全，移交临床审核")
-                        : "缺少：" + String.join("、", missingItems) + (forced && missingText.isBlank() ? "（模拟）" : ""));
+                        ? (supplemented ? "Supplementary material received; handed over to clinical review" : "All material complete; handed over to clinical review")
+                        : "Missing: " + String.join(", ", missingItems) + (forced && missingText.isBlank() ? " (simulated)" : ""));
     }
 
     /**
@@ -89,6 +100,12 @@ public class ReferralWorkers {
         try {
             Map<String, Object> variables = job.getVariablesAsMap();
             String referralId = Support.str(variables, "referralId", "");
+
+            // --- 数据库持久化：转诊单登记 + 补件请求审计 ---
+            JobContext ctx = JobContext.of(job, "send-supplement-request");
+            db.recordReferral(variables, "SUPPLEMENT_REQUESTED", ctx);
+            db.recordSupplement(variables, "requested", ctx);
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("ReferralSupplementRequested")
@@ -121,6 +138,14 @@ public class ReferralWorkers {
         Support.callExternalSystem("clinical-review-queue", Support.vars(
                 "referralId", vars.get("referralId"),
                 "handedOverTo", vars.get("handedOverTo")));
+
+        // --- 数据库持久化：转诊单进入临床审核 + 审计 ---
+        JobContext ctx = JobContext.of(job, "notify-clinical-review");
+        db.recordReferral(vars, "UNDER_CLINICAL_REVIEW", ctx);
+        db.audit(ctx, "notify-clinical-review", Support.str(vars, "referralId", null),
+                "handedOverTo=" + vars.get("handedOverTo"));
+        // --- 持久化结束 ---
+
         return Support.vars("clinicalReviewNotified", true, "handedOverAt", Support.stamp());
     }
 }

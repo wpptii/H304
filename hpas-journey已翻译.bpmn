@@ -12,8 +12,8 @@
     <bpmn:messageFlow id="MsgFlow_07_PSP" name="Payment Request / Status" sourceRef="Call_07_Payment" targetRef="Task_Ext_PSP" />
     <bpmn:messageFlow id="MsgFlow_08_Patient" name="Patient Inquiry Call" sourceRef="Call_08_Enquiry" targetRef="Task_Ext_Patient" />
   </bpmn:collaboration>
-  <bpmn:process id="Process_HPAS_Journey" name="HPAS 总图：患者转诊—治疗—行政全路径" isExecutable="true">
-    <bpmn:documentation>HPAS（Hospital Patient Referral, Treatment and Administration System）端到端总流程。案例路径：GP / 其他医院转诊 → 医疗秘书核查材料（缺件则请求转介方补件，补件回环）→ 顾问医师临床审核并决策（接受 / 拒绝 / 要求补件 / 转介他院，决定与决定人必须留痕）→ 只有被接受才能安排新患者预约 → 通过外部排程服务找号源并确认 → 患者通知（两周内必须电话联系，每次尝试留痕）→ 门诊信函（顾问撰写并批准、秘书行政检查、外部渠道分发，7 天时限与升级）→ 资助确定（医院 / 保险 / 资助机构 / 自费，需批准时等外部机构回执）→ 支付处理（需自付时由外部 PSP 收取，成功或已记录豁免才确认预约）→ 持续的患者咨询处理与路由（行政 / 财务 / 临床）。八个 Call Activity 分别调用 Process_P1_ReferralIntake、Process_P2_ClinicalReview、Process_P3_AppointmentScheduling、Process_P4_PatientNotification、Process_P10_LetterProcess、Process_P7_FundingDetermination、Process_P12_PaymentProcessing、Process_P8_InquiryRouting。</bpmn:documentation>
+  <bpmn:process id="Process_HPAS_Journey" name="HPAS Overview: Full Pathway for Patient Referral, Treatment and Administration" isExecutable="true">
+    <bpmn:documentation>HPAS (Hospital Patient Referral, Treatment and Administration System) end-to-end journey. Case pathway: referral from a GP / another hospital -&gt; medical secretary checks the materials (if items are missing, the referrer is asked to supplement, supplement loop) -&gt; consultant physician clinical review and decision (accept / reject / request supplement / redirect to another hospital; the decision and the decision-maker must be documented) -&gt; a new patient appointment can only be arranged once accepted -&gt; the external scheduling service finds a slot and confirms -&gt; patient notification (phone contact is mandatory within two weeks and every attempt is logged) -&gt; clinic letter (drafted and approved by the consultant, administrative check by the secretary, distribution through the external channel, 7-day deadline and escalation) -&gt; funding determination (hospital / insurance / funding agency / self-pay; wait for the external agency receipt when approval is required) -&gt; payment processing (collected by the external PSP when self-pay; the appointment is confirmed only on success or a recorded waiver) -&gt; ongoing patient enquiry handling and routing (administrative / financial / clinical). Eight Call Activities invoke Process_P1_ReferralIntake, Process_P2_ClinicalReview, Process_P3_AppointmentScheduling, Process_P4_PatientNotification, Process_P10_LetterProcess, Process_P7_FundingDetermination, Process_P12_PaymentProcessing and Process_P8_InquiryRouting respectively.</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_HPAS">
       <bpmn:lane id="Lane_Secretary" name="Medical Secretary">
         <bpmn:flowNodeRef>StartEvent_ReferralArrived</bpmn:flowNodeRef>
@@ -26,8 +26,8 @@
         <bpmn:flowNodeRef>Call_05_ClinicLetter</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Booking" name="Outpatient Scheduling Team">
-        <bpmn:flowNodeRef>Call_03_Scheduling</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Call_04_Notification</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Call_03_Scheduling</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_CallHandling" name="Call Processing">
         <bpmn:flowNodeRef>Call_08_Enquiry</bpmn:flowNodeRef>
@@ -46,7 +46,7 @@
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_Start_To_01" sourceRef="StartEvent_ReferralArrived" targetRef="Call_01_ReferralIntake" />
     <bpmn:callActivity id="Call_01_ReferralIntake" name="① Option 1: Referral Intake &#38; Completeness Verification&#10;(For Medical Secretary: Strictly Non-Clinical)">
-      <bpmn:documentation>选择 1（Process_P1_ReferralIntake）。医疗秘书检查转诊随附材料；缺件时向转介方请求补件（跨 Pool 消息 ReferralSupplementRequested ⇄ ReferralSupplementReceived），补件到达后重新核查。医疗秘书不得评估临床适宜性（BR-01），材料完整后才移交顾问医师（BR-02）。</bpmn:documentation>
+      <bpmn:documentation>Option 1 (Process_P1_ReferralIntake). The medical secretary checks the materials accompanying the referral; if items are missing the referrer is asked to supplement (cross-pool messages ReferralSupplementRequested &lt;-&gt; ReferralSupplementReceived) and the check is repeated once the supplement arrives. The medical secretary must not assess clinical appropriateness (BR-01); the referral is handed over to the consultant physician only when the materials are complete (BR-02).</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_P1_ReferralIntake" propagateAllChildVariables="true" />
       </bpmn:extensionElements>
@@ -54,8 +54,8 @@
       <bpmn:outgoing>Flow_01_To_02</bpmn:outgoing>
     </bpmn:callActivity>
     <bpmn:sequenceFlow id="Flow_01_To_02" sourceRef="Call_01_ReferralIntake" targetRef="Call_02_ClinicalReview" />
-    <bpmn:callActivity id="Call_02_ClinicalReview" name="② Option 2: Clinical Review &#38; Referral Decision-Making&#10;(Accept / Reject / Request Additional Information / Redirect to Another Facility; Documentation Required)）">
-      <bpmn:documentation>选择 2（Process_P2_ClinicalReview）。顾问医师接受 / 拒绝 / 要求补件 / 转介其他专科服务，决定理由与决定人必须留痕；只有被接受才能安排新患者预约。四条决策分支分别通过跨 Pool 消息通知外部方。</bpmn:documentation>
+    <bpmn:callActivity id="Call_02_ClinicalReview" name="② Option 2: Clinical Review &#38; Referral Decision-Making&#10;(Accept / Reject / Request Additional Information / Redirect to Another Facility; Documentation Required)">
+      <bpmn:documentation>Option 2 (Process_P2_ClinicalReview). The consultant physician accepts / rejects / requests a supplement / redirects to another specialist service; the decision reason and the decision-maker must be documented; a new patient appointment can only be arranged once accepted. The four decision branches notify the external parties through cross-pool messages.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_P2_ClinicalReview" propagateAllChildVariables="true" />
       </bpmn:extensionElements>
@@ -75,17 +75,9 @@
     <bpmn:endEvent id="EndEvent_NotAccepted" name="Referral Rejected (Relevant Parties Notified)">
       <bpmn:incoming>Flow_NotAccepted</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:callActivity id="Call_03_Scheduling" name="③ Option 3: New Patient Scheduling&#10;(External Scheduling Service; If Failed, Keep as Pending and Retry)">
-      <bpmn:documentation>选择 3（Process_P3_AppointmentScheduling）。按专科 / 优先级 / 期望时间窗，通过外部排程服务寻找号源并确认预约；外部暂时无号源时保持 Pending、通知责任团队并记录重试（Timer 重试环），不得产生重复预约。</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:calledElement processId="Process_P3_AppointmentScheduling" propagateAllChildVariables="true" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Accepted</bpmn:incoming>
-      <bpmn:outgoing>Flow_03_To_04</bpmn:outgoing>
-    </bpmn:callActivity>
     <bpmn:sequenceFlow id="Flow_03_To_04" sourceRef="Call_03_Scheduling" targetRef="Call_04_Notification" />
     <bpmn:callActivity id="Call_04_Notification" name="④ Option 4: Patient Notification &#38; Contact&#10;(Letter Notification; Phone Call Required Within Two Weeks)">
-      <bpmn:documentation>选择 4（Process_P4_PatientNotification）。预约通知通常以信函经外部通信服务发出；若预约在两周内，必须同时电话联系。每次联系尝试与结果都要留痕（未接听、号码错误、患者要求改期）。</bpmn:documentation>
+      <bpmn:documentation>Option 4 (Process_P4_PatientNotification). The appointment notification is normally sent as a letter through the external communication service; if the appointment is within two weeks, phone contact is also mandatory. Every contact attempt and outcome is logged (no answer, wrong number, patient requests rescheduling).</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_P4_PatientNotification" propagateAllChildVariables="true" />
       </bpmn:extensionElements>
@@ -94,7 +86,7 @@
     </bpmn:callActivity>
     <bpmn:sequenceFlow id="Flow_04_To_05" sourceRef="Call_04_Notification" targetRef="Call_05_ClinicLetter" />
     <bpmn:callActivity id="Call_05_ClinicLetter" name="⑤ Option 5: Outpatient Letter Drafting, Approval, &#38; Distribution&#10;(Drafted &#38; Approved by Consultant + Administrative Check by Medical Secretary + Escalation to Admin Manager)">
-      <bpmn:documentation>选择 5（Process_P10_LetterProcess）。顾问撰写并批准信函（临床内容责任在顾问），医疗秘书做行政检查并确认收件人、安排分发；行政人员不得改变临床含义，疑似临床错误退回顾问。7 天时限，超期进入路径监控并逐步升级到行政经理与更高管理层。</bpmn:documentation>
+      <bpmn:documentation>Option 5 (Process_P10_LetterProcess). The consultant drafts and approves the letter (clinical content is the consultant's responsibility); the medical secretary performs the administrative check, confirms the addressee and arranges distribution; administrative staff must not change the clinical meaning and suspected clinical errors are returned to the consultant. 7-day deadline; overdue cases enter pathway monitoring and are escalated step by step to the administrative manager and higher management.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_P10_LetterProcess" propagateAllChildVariables="true" />
       </bpmn:extensionElements>
@@ -103,7 +95,7 @@
     </bpmn:callActivity>
     <bpmn:sequenceFlow id="Flow_05_To_06" sourceRef="Call_05_ClinicLetter" targetRef="Call_06_Funding" />
     <bpmn:callActivity id="Call_06_Funding" name="⑥ Option 6: Funding Determination &#38; Documentation&#10;(Hospital / Insurance / Grant Agency / Self-Pay; Await Receipt/Confirmation if Approval Required)">
-      <bpmn:documentation>选择 6（Process_P7_FundingDetermination）。确定治疗由医院承担、保险 / 资助机构承担还是患者自付；需要批准时登记责任机构、授权参考号、批准金额与限制条件，并等外部机构回执。资助是支付的前置门控。</bpmn:documentation>
+      <bpmn:documentation>Option 6 (Process_P7_FundingDetermination). Determine whether the treatment is funded by the hospital, by the insurance / funding agency, or self-paid; when approval is required, record the responsible agency, authorisation reference, approved amount and restrictions, and wait for the external agency receipt. Funding is the pre-gate for payment.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_P7_FundingDetermination" propagateAllChildVariables="true" />
       </bpmn:extensionElements>
@@ -112,7 +104,7 @@
     </bpmn:callActivity>
     <bpmn:sequenceFlow id="Flow_06_To_07" sourceRef="Call_06_Funding" targetRef="Call_07_Payment" />
     <bpmn:callActivity id="Call_07_Payment" name="⑦ Option 7: Payment Processing&#10;(External PSP Collection; Appointment Confirmed Only Upon Successful Payment or Recorded Waiver)">
-      <bpmn:documentation>选择 7（Process_P12_PaymentProcessing）。需自付时由系统计算费用并向外部 PSP 发起安全支付请求，回执包含支付状态、交易号、日期与金额；系统不得保存完整卡信息。支付成功或已记录豁免 / 资助批准才确认治疗预约；失败 / 重复 / 未完成分别处理，不得重复扣款。</bpmn:documentation>
+      <bpmn:documentation>Option 7 (Process_P12_PaymentProcessing). When self-pay applies, the system calculates the fee and sends a secure payment request to the external PSP; the receipt contains the payment status, transaction ID, date and amount; the system must not store full card details. The treatment appointment is confirmed only on successful payment or a recorded waiver / funding approval; failed / duplicate / incomplete cases are handled separately and duplicate charges are not allowed.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_P12_PaymentProcessing" propagateAllChildVariables="true" />
       </bpmn:extensionElements>
@@ -120,8 +112,8 @@
       <bpmn:outgoing>Flow_07_To_08</bpmn:outgoing>
     </bpmn:callActivity>
     <bpmn:sequenceFlow id="Flow_07_To_08" sourceRef="Call_07_Payment" targetRef="Call_08_Enquiry" />
-    <bpmn:callActivity id="Call_08_Enquiry" name="⑧ Option 8: Patient Inquiry Handling &#38; Routing&#10;(Registration / Triage / Prioritization → Administrative / Financial / Clinical)">
-      <bpmn:documentation>选择 8（Process_P8_InquiryRouting）。每通咨询都要登记、分类、定优先级并路由到责任团队：简单行政可当场答复，财务类转财务团队，临床类转 CNS / 授权临床人员（紧急高亮）。呼叫处理不得诊断、解读检验结果或给临床建议。</bpmn:documentation>
+    <bpmn:callActivity id="Call_08_Enquiry" name="⑧ Option 8: Patient Inquiry Handling &#38; Routing&#10;(Registration / Triage / Prioritization -&#62; Administrative / Financial / Clinical)">
+      <bpmn:documentation>Option 8 (Process_P8_InquiryRouting). Every enquiry is registered, categorised, prioritised and routed to the responsible team: simple administrative enquiries can be answered on the spot, financial ones go to the finance team and clinical ones go to the CNS / authorised clinical staff (highlighted when urgent). Call handling must not diagnose, interpret test results or give clinical advice.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_P8_InquiryRouting" propagateAllChildVariables="true" />
       </bpmn:extensionElements>
@@ -132,9 +124,17 @@
     <bpmn:endEvent id="EndEvent_JourneyCompleted" name="Patient Pathway Completed (Enter Ongoing Follow-Up)">
       <bpmn:incoming>Flow_08_To_End</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:callActivity id="Call_03_Scheduling" name="③ Option 3: New Patient Scheduling&#10;(External Scheduling Service; If Failed, Keep as Pending and Retry)">
+      <bpmn:documentation>Option 3 (Process_P3_AppointmentScheduling). By specialty / priority / preferred time window, the external scheduling service finds a slot and confirms the appointment; when no slot is available it stays Pending, the responsible team is notified and the retry is logged (Timer retry loop), and duplicate appointments must not be created.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_P3_AppointmentScheduling" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Accepted</bpmn:incoming>
+      <bpmn:outgoing>Flow_03_To_04</bpmn:outgoing>
+    </bpmn:callActivity>
   </bpmn:process>
-  <bpmn:process id="Process_External_Parties" name="外部服务与相关方" isExecutable="false">
-    <bpmn:documentation>外部 Pool：案例中与医院交互的外部方 —— 转诊方（GP / 其他医院）、外部排程服务、外部通信服务与患者、资助机构 / 保险公司、支付服务提供商（PSP）。各阶段通过 bpmn:messageFlow 与其往来消息。</bpmn:documentation>
+  <bpmn:process id="Process_External_Parties" name="External Services and Stakeholders" isExecutable="false">
+    <bpmn:documentation>External pool: the external parties interacting with the hospital in this case - the referrer (GP / other hospital), the external scheduling service, the external communication service and the patient, the funding agency / insurance company, and the payment service provider (PSP). Each stage exchanges messages with them through bpmn:messageFlow.</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_External">
       <bpmn:lane id="Lane_ExtReferrer" name="Referring Party (GP / Other Hospital)">
         <bpmn:flowNodeRef>Task_Ext_Referrer</bpmn:flowNodeRef>
@@ -155,7 +155,11 @@
         <bpmn:flowNodeRef>Task_Ext_PSP</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
-    <bpmn:userTask id="Task_Ext_Referrer" name="Submit Referral Materials / Additional Information, Receive Review Decision" />
+    <bpmn:userTask id="Task_Ext_Referrer" name="Submit Referral Materials / Additional Information, Receive Review Decision">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="referring-practices" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
     <bpmn:serviceTask id="Task_Ext_Scheduler" name="Allocate Appointment Slots, Return Scheduling Results">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="external-scheduling-service" />
@@ -166,8 +170,16 @@
         <zeebe:taskDefinition type="external-correspondence-service" />
       </bpmn:extensionElements>
     </bpmn:serviceTask>
-    <bpmn:userTask id="Task_Ext_Patient" name="Receive Notifications / Incoming Inquiry Calls / On-site Visits" />
-    <bpmn:userTask id="Task_Ext_Funder" name="Approve Funding Applications, Return Approval Results &#38; Restrictions" />
+    <bpmn:userTask id="Task_Ext_Patient" name="Receive Notifications / Incoming Inquiry Calls / On-site Visits">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="patients" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Ext_Funder" name="Approve Funding Applications, Return Approval Results &#38; Restrictions">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="funder-reviewers" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
     <bpmn:serviceTask id="Task_Ext_PSP" name="Process Payment, Return Status / Transaction ID / Amount">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="external-psp-service" />
@@ -239,10 +251,6 @@
           <dc:Bounds x="884" y="438" width="86" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Call_03_Scheduling_di" bpmnElement="Call_03_Scheduling" isExpanded="false">
-        <dc:Bounds x="1130" y="405" width="220" height="100" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Call_04_Notification_di" bpmnElement="Call_04_Notification" isExpanded="false">
         <dc:Bounds x="1410" y="405" width="220" height="100" />
         <bpmndi:BPMNLabel />
@@ -269,6 +277,10 @@
           <dc:Bounds x="2790" y="605" width="98" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Call_03_Scheduling_di" bpmnElement="Call_03_Scheduling" isExpanded="false">
+        <dc:Bounds x="1140" y="405" width="220" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_To_01_di" bpmnElement="Flow_Start_To_01">
         <di:waypoint x="286" y="165" />
         <di:waypoint x="340" y="165" />
@@ -287,7 +299,7 @@
         <di:waypoint x="950" y="305" />
         <di:waypoint x="1090" y="305" />
         <di:waypoint x="1090" y="455" />
-        <di:waypoint x="1130" y="455" />
+        <di:waypoint x="1140" y="455" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1006" y="282" width="78" height="27" />
         </bpmndi:BPMNLabel>
@@ -300,8 +312,10 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_03_To_04_di" bpmnElement="Flow_03_To_04">
-        <di:waypoint x="1350" y="455" />
-        <di:waypoint x="1410" y="455" />
+        <di:waypoint x="1250" y="405" />
+        <di:waypoint x="1250" y="290" />
+        <di:waypoint x="1520" y="290" />
+        <di:waypoint x="1520" y="405" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_04_To_05_di" bpmnElement="Flow_04_To_05">
         <di:waypoint x="1630" y="455" />
@@ -448,10 +462,10 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="MsgFlow_03_Scheduler_di" bpmnElement="MsgFlow_03_Scheduler">
-        <di:waypoint x="1240" y="505" />
-        <di:waypoint x="1240" y="1080" />
+        <di:waypoint x="1250" y="505" />
+        <di:waypoint x="1250" y="1080" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1239" y="776" width="82" height="27" />
+          <dc:Bounds x="1249" y="776" width="82" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="MsgFlow_04_Correspondence_di" bpmnElement="MsgFlow_04_Correspondence">

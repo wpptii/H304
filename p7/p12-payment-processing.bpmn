@@ -14,7 +14,7 @@
     <bpmn:messageFlow id="MessageFlow_PaymentStatus" name="Payment Status Receipt" sourceRef="EndEvent_PSP_SendStatus" targetRef="Catch_PaymentStatus" />
   </bpmn:collaboration>
   <bpmn:process id="Process_P12_PaymentProcessing" name="Option 7: P12 Payment Processing" isExecutable="true">
-    <bpmn:documentation>选择 7：P12 支付处理。骨架：Start「资助已确定/费用已计算」→ User Task「确认费用与支付方式」Form（不存完整卡号）→ External Worker「调用 PSP 支付」topic: payment-request → XOR 支付状态：成功 → User Task「记录支付并确认预约」Form → Message 通知治疗预约团队 → End；失败/拒绝 → User Task「调查支付失败」Form → External Worker「重试/取消」topic: payment-retry → End；重复/不完整 → 异常分支记录 → End。规则：BR-16、BR-17、BR-19。亮点：External Worker、消息、异常处理都很强。</bpmn:documentation>
+    <bpmn:documentation>Option 7: P12 Payment Processing. Skeleton: Start "Funding confirmed / Costs calculated" -> User Task "Confirm costs and payment method" Form (no full card number stored) -> External Worker "Call PSP payment" topic: payment-request -> XOR Payment status: success -> User Task "Record payment and confirm the appointment" Form -> Message notify the treatment appointment team -> End; failed / rejected -> User Task "Survey payment failed" Form -> External Worker "Retry / Cancel Payment" topic: payment-retry -> End; duplicate / incomplete -> exception branch record -> End. Rules: BR-16, BR-17, BR-19. Highlight: strong use of external workers, messages and exception handling.</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_P12">
       <bpmn:lane id="Lane_Finance" name="Finance team">
         <bpmn:flowNodeRef>Gateway_PaymentStatus</bpmn:flowNodeRef>
@@ -57,7 +57,7 @@
     <bpmn:sequenceFlow id="Flow_Retry_To_End" sourceRef="Task_PaymentRetry" targetRef="EndEvent_RetryHandled" />
     <bpmn:sequenceFlow id="Flow_Exception_To_End" sourceRef="Task_RecordException" targetRef="EndEvent_ExceptionRecorded" />
     <bpmn:userTask id="Task_RecordPayment" name="Record payment and confirm the appointment">
-      <bpmn:documentation>BR-19：支付成功后登记 PSP 交易号与金额，并确认预约（只有支付成功才确认预约）。</bpmn:documentation>
+      <bpmn:documentation>BR-19: After successful payment, record the PSP transaction ID and amount and confirm the appointment (the appointment is confirmed only on successful payment).</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p12-record-payment" />
         <zeebe:assignmentDefinition candidateGroups="finance-team" />
@@ -67,7 +67,7 @@
       <bpmn:outgoing>Flow_Record_To_Notify</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="Task_PaymentRetry" name="Retry / Cancel Payment">
-      <bpmn:documentation>External Worker：按调查结论向 PSP 发起重试或取消（BR-17）。Job type（topic）= payment-retry。写回 paymentRetryOutcome。</bpmn:documentation>
+      <bpmn:documentation>External Worker: Based on the investigation outcome, initiate a retry or cancellation with the PSP (BR-17). Job type (topic) = payment-retry. Writes back paymentRetryOutcome.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="payment-retry" retries="3" />
         <zeebe:taskHeaders>
@@ -83,7 +83,7 @@
       <bpmn:outgoing>Flow_Retry_To_End</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:userTask id="Task_InvestigateFailure" name="Survey payment failed">
-      <bpmn:documentation>BR-17：支付失败 / 被拒时登记失败原因与后续处理方式（重试 / 取消）。</bpmn:documentation>
+      <bpmn:documentation>BR-17: On payment failure / rejection, record the failure reason and the follow-up handling (retry / cancel).</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p12-investigate-failure" />
         <zeebe:assignmentDefinition candidateGroups="finance-team" />
@@ -93,7 +93,7 @@
       <bpmn:outgoing>Flow_Investigate_To_Retry</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Task_ConfirmFeeAndMethod" name="Confirm costs and payment method">
-      <bpmn:documentation>BR-16：财务团队确认应付金额与支付方式；流程变量只保存卡号后四位与支付令牌引用，不保存完整卡号（PCI 要求）。</bpmn:documentation>
+      <bpmn:documentation>BR-16: The finance team confirms the amount due and the payment method; process variables store only the last four digits of the card and the payment token reference, never the full card number (PCI requirement).</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p12-payment-method" />
         <zeebe:assignmentDefinition candidateGroups="finance-team" />
@@ -103,7 +103,7 @@
       <bpmn:outgoing>Flow_Confirm_To_PaymentRequest</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="Task_NotifyCareTeam" name="Notify the treatment appointment team">
-      <bpmn:documentation>Message：向治疗预约团队投递 CareTeamNotified（跨 Pool 消息）。Job type（topic）= notify-care-team。</bpmn:documentation>
+      <bpmn:documentation>Message: Deliver CareTeamNotified to the treatment appointment team (cross-pool message). Job type (topic) = notify-care-team.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="notify-care-team" retries="3" />
         <zeebe:taskHeaders>
@@ -125,7 +125,7 @@
       <bpmn:outgoing>Flow_Start_To_Confirm</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:userTask id="Task_RecordException" name="Record error (duplicate / incomplete)">
-      <bpmn:documentation>BR-19：重复扣款、金额不符、PSP 回执不完整等情形单独记录并转人工跟进。</bpmn:documentation>
+      <bpmn:documentation>BR-19: Duplicate charges, amount mismatches, incomplete PSP receipts and similar cases are recorded separately and passed for manual follow-up.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="p12-record-exception" />
         <zeebe:assignmentDefinition candidateGroups="finance-team" />
@@ -138,7 +138,7 @@
       <bpmn:incoming>Flow_Exception_To_End</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:intermediateThrowEvent id="Throw_PaymentRequest" name="Call PSP payment">
-      <bpmn:documentation>Message：向外部 Pool（PSP）投递 PaymentRequested，启动 PSP 的流程实例。Job type = send-payment-request。</bpmn:documentation>
+      <bpmn:documentation>Message: Deliver PaymentRequested to the external pool (PSP) and start the PSP process instance. Job type = send-payment-request.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-payment-request" retries="3" />
         <zeebe:taskHeaders>
@@ -150,7 +150,7 @@
       <bpmn:messageEventDefinition id="MessageEventDefinition_PaymentRequested" />
     </bpmn:intermediateThrowEvent>
     <bpmn:intermediateCatchEvent id="Catch_PaymentStatus" name="PSP receipt">
-      <bpmn:documentation>等待 PSP 回传 PaymentStatusReceived（关联键 = caseId）。回执变量（paymentStatus / pspReference / failureReason）随消息进入本实例，供 XOR 判定。</bpmn:documentation>
+      <bpmn:documentation>Wait for the PSP to return PaymentStatusReceived (correlation key = caseId). The receipt variables (paymentStatus / pspReference / failureReason) enter this instance with the message for the XOR evaluation.</bpmn:documentation>
       <bpmn:incoming>Flow_PaymentRequest_To_Catch</bpmn:incoming>
       <bpmn:outgoing>Flow_PaymentRequest_To_Gateway</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_PaymentStatus" messageRef="Message_PaymentStatusReceived" />
@@ -162,8 +162,8 @@
       <bpmn:incoming>Flow_Notify_To_End</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmn:process id="Process_P12_PSPPool" name="选择 7：P12 支付处理（支付服务提供商 PSP）" isExecutable="true">
-    <bpmn:documentation>外部 Pool：收到支付请求后由 PSP 处理，并把支付状态回执回传医院。</bpmn:documentation>
+  <bpmn:process id="Process_P12_PSPPool" name="Option 7: P12 Payment Processing (Payment Service Provider PSP)" isExecutable="true">
+    <bpmn:documentation>External pool: On receiving the payment request, the PSP processes it and returns the payment status receipt to the hospital.</bpmn:documentation>
     <bpmn:laneSet id="LaneSet_P12_PSP">
       <bpmn:lane id="Lane_PSP" name="Payment Service Provider (PSP)">
         <bpmn:flowNodeRef>StartEvent_PSP_PaymentRequested</bpmn:flowNodeRef>
@@ -177,7 +177,7 @@
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_PSP_Start_To_Task" sourceRef="StartEvent_PSP_PaymentRequested" targetRef="Task_PSP_ProcessPayment" />
     <bpmn:serviceTask id="Task_PSP_ProcessPayment" name="Handle payment">
-      <bpmn:documentation>External Worker：PSP 侧处理支付，写回 paymentStatus / pspReference / failureReason。Job type = psp-process-payment。</bpmn:documentation>
+      <bpmn:documentation>External Worker: The PSP side processes the payment and writes back paymentStatus / pspReference / failureReason. Job type = psp-process-payment.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="psp-process-payment" retries="3" />
         <zeebe:taskHeaders>
@@ -189,7 +189,7 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_PSP_Task_To_End" sourceRef="Task_PSP_ProcessPayment" targetRef="EndEvent_PSP_SendStatus" />
     <bpmn:endEvent id="EndEvent_PSP_SendStatus" name="Send back payment status">
-      <bpmn:documentation>Message：投递 PaymentStatusReceived（关联键 = caseId）。Job type = psp-send-status。</bpmn:documentation>
+      <bpmn:documentation>Message: Deliver PaymentStatusReceived (correlation key = caseId). Job type = psp-send-status.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="psp-send-status" retries="3" />
       </bpmn:extensionElements>

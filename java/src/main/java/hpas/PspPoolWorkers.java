@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -22,9 +24,11 @@ public class PspPoolWorkers {
     private static final Logger LOG = LoggerFactory.getLogger(PspPoolWorkers.class);
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public PspPoolWorkers(CamundaClient camundaClient) {
+    public PspPoolWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /**
@@ -45,21 +49,42 @@ public class PspPoolWorkers {
                 "paymentTokenRef", vars.get("paymentTokenRef")));
 
         switch (scenario) {
-            case "failed":
-                return Support.vars(
+            case "failed": {
+                Map<String, Object> failed = Support.vars(
                         "paymentStatus", "failed",
-                        "failureReason", "模拟：发卡行拒绝",
+                        "failureReason", "Simulation: card issuer declined",
                         "pspReference", null);
-            case "duplicate":
-                return Support.vars(
+                recordPspOutcome(job, vars, failed);
+                return failed;
+            }
+            case "duplicate": {
+                Map<String, Object> duplicate = Support.vars(
                         "paymentStatus", "duplicate",
-                        "failureReason", "模拟：同一笔费用已有成功扣款",
+                        "failureReason", "Simulation: a successful charge already exists for this payment",
                         "pspReference", "PSP-DUP-" + System.currentTimeMillis());
-            default:
-                return Support.vars(
+                recordPspOutcome(job, vars, duplicate);
+                return duplicate;
+            }
+            default: {
+                Map<String, Object> success = Support.vars(
                         "paymentStatus", "success",
                         "pspReference", "PSP-" + caseId + "-" + System.currentTimeMillis());
+                recordPspOutcome(job, vars, success);
+                return success;
+            }
         }
+    }
+
+    /** 把 PSP 的判定结果落库：成功 / 失败 / 重复都留痕，成功支付受「一案一成功」约束。 */
+    private void recordPspOutcome(ActivatedJob job, Map<String, Object> vars, Map<String, Object> outcome) {
+        Map<String, Object> merged = new java.util.LinkedHashMap<>(vars);
+        merged.putAll(outcome);
+        String result = db.recordPayment(merged, JobContext.of(job, "psp-process-payment"));
+        Support.log("psp-process-payment-persistence", Support.vars(
+                "caseId", merged.get("caseId"),
+                "paymentStatus", merged.get("paymentStatus"),
+                "pspReference", merged.get("pspReference"),
+                "dbOutcome", result));
     }
 
     /** 消息结束事件「回传支付状态」的 Worker。 */
@@ -69,6 +94,10 @@ public class PspPoolWorkers {
         try {
             Map<String, Object> vars = job.getVariablesAsMap();
             String caseId = Support.str(vars, "caseId", "");
+
+            // --- 数据库持久化：回传 PSP 状态前落库（幂等键 = caseId|pspReference|status） ---
+            db.recordPayment(vars, JobContext.of(job, "psp-send-status"));
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("PaymentStatusReceived")

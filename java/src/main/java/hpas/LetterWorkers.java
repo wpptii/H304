@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -12,6 +14,8 @@ import java.util.Map;
 /**
  * 选择 5：P10 门诊信函编制、批准与分发
  * 对应模型 p10-letter-process.bpmn（含 7 天时限与升级）。
+ *
+ * <p>数据库：信函正文 / 分发时间 / 是否 7 天内完成写入 clinic_letter 表（caseId 唯一）。
  */
 @Component
 public class LetterWorkers {
@@ -20,9 +24,11 @@ public class LetterWorkers {
     private static final int DEADLINE_DAYS = 7;
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public LetterWorkers(CamundaClient camundaClient) {
+    public LetterWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /** 分发信函，并判定是否在 7 天内完成（结果写回 dispatchedWithin7Days 供网关判断）。 */
@@ -44,11 +50,19 @@ public class LetterWorkers {
                 "addressee", vars.get("addressee"),
                 "elapsedDays", elapsedDays));
 
-        return Support.vars(
+        Map<String, Object> result = Support.vars(
                 "letterDispatched", true,
                 "dispatchedAt", Support.stamp(),
                 "elapsedDays", elapsedDays,
                 "dispatchedWithin7Days", withinDeadline);
+
+        // --- 数据库持久化：信函分发（含 BR-27 的 7 天结论） ---
+        Map<String, Object> merged = new java.util.LinkedHashMap<>(vars);
+        merged.putAll(result);
+        db.recordLetter(merged, JobContext.of(job, "letter-dispatch"));
+        // --- 持久化结束 ---
+
+        return result;
     }
 
     /**
@@ -62,6 +76,11 @@ public class LetterWorkers {
         try {
             Map<String, Object> vars = job.getVariablesAsMap();
             String caseId = Support.str(vars, "caseId", "");
+
+            // --- 数据库持久化：升级到协调员（clinic_letter 升级字段 + 审计） ---
+            JobContext ctx = JobContext.of(job, "notify-pathway-coordinator");
+            db.recordEscalation(vars, ctx);
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("EscalationRaised")

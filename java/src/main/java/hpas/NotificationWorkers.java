@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -10,14 +12,18 @@ import java.util.Map;
 /**
  * 选择 4：P4 患者通知与联系
  * 对应模型 p4-patient-notification.bpmn（含「否：重试」分支）。
+ *
+ * <p>数据库：通知渠道与尝试次数写 appointment，联系结果写 process_audit。
  */
 @Component
 public class NotificationWorkers {
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public NotificationWorkers(CamundaClient camundaClient) {
+    public NotificationWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /**
@@ -32,23 +38,38 @@ public class NotificationWorkers {
         String method = Support.str(vars, "method", "");
         String channel = Support.CHANNEL.getOrDefault(method, method);
 
+        Map<String, Object> result;
         if (forcedFail) {
-            return Support.vars(
+            result = Support.vars(
                     "notifyStatus", false,
                     "notifyAttempts", attempt,
-                    "notifyError", "模拟发送失败：外部通信服务超时");
+                    "notifyError", "Simulated send failure: external communication service timed out");
+        } else {
+            Support.callExternalSystem("communication-service", Support.vars(
+                    "channel", channel,
+                    "to", vars.get("contactValue"),
+                    "language", Support.str(vars, "language", "zh-CN"),
+                    "appointmentId", vars.get("appointmentId")));
+
+            result = Support.vars(
+                    "notifyStatus", true,
+                    "notifyAttempts", attempt,
+                    "notifyChannel", channel);
         }
 
-        Support.callExternalSystem("communication-service", Support.vars(
-                "channel", channel,
-                "to", vars.get("contactValue"),
-                "language", Support.str(vars, "language", "zh-CN"),
-                "appointmentId", vars.get("appointmentId")));
+        // --- 数据库持久化：通知尝试次数 / 渠道写 appointment，并留审计 ---
+        Map<String, Object> merged = new java.util.LinkedHashMap<>(vars);
+        merged.putAll(result);
+        JobContext ctx = JobContext.of(job, "communication-send");
+        db.upsertAppointment(merged, ctx);
+        db.audit(ctx, "communication-send", Support.str(merged, "appointmentId",
+                        Support.str(merged, "referralId", null)),
+                "attempt=" + attempt + " notifyStatus=" + result.get("notifyStatus")
+                        + " channel=" + (result.get("notifyChannel") == null ? channel : result.get("notifyChannel"))
+                        + " error=" + result.get("notifyError"));
+        // --- 持久化结束 ---
 
-        return Support.vars(
-                "notifyStatus", true,
-                "notifyAttempts", attempt,
-                "notifyChannel", channel);
+        return result;
     }
 
     /** 记录联系尝试（BR-12）。 */
@@ -65,6 +86,14 @@ public class NotificationWorkers {
                 "phoneNumber", vars.get("phoneNumber"),
                 "interpreterUsed", vars.get("interpreterUsed"),
                 "remarks", vars.get("remarks")));
+
+        // --- 数据库持久化：联系尝试记录（appointment 状态 + 审计） ---
+        JobContext ctx = JobContext.of(job, "contact-log");
+        db.upsertAppointment(vars, ctx);
+        db.audit(ctx, "contact-log", Support.str(vars, "appointmentId", null),
+                "contactLogId=" + contactLogId + " result=" + result
+                        + " interpreterUsed=" + vars.get("interpreterUsed"));
+        // --- 持久化结束 ---
 
         return Support.vars(
                 "contactLogId", contactLogId,
@@ -85,6 +114,11 @@ public class NotificationWorkers {
         try {
             Map<String, Object> vars = job.getVariablesAsMap();
             String appointmentId = Support.str(vars, "appointmentId", "");
+
+            // --- 数据库持久化：预约已通知患者（状态 NOTIFIED） ---
+            JobContext ctx = JobContext.of(job, "notify-confirm");
+            db.upsertAppointment(vars, ctx);
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("PatientContactRecorded")

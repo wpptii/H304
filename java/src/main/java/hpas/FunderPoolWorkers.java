@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -22,9 +24,11 @@ public class FunderPoolWorkers {
     private static final Logger LOG = LoggerFactory.getLogger(FunderPoolWorkers.class);
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public FunderPoolWorkers(CamundaClient camundaClient) {
+    public FunderPoolWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /** 消息结束事件「回传批准结果」的 Worker。 */
@@ -37,6 +41,10 @@ public class FunderPoolWorkers {
 
             // 审批结论随消息回传医院：医院侧「记录批准」表单会直接看到这些字段
             variables.put("funderReplyReceived", true);
+
+            // --- 数据库持久化：外部审批结论（approvalStatus / approvedAmount / restrictions） ---
+            db.recordFunding(variables, JobContext.of(job, "funder-send-result"));
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("FundingApprovalResult")

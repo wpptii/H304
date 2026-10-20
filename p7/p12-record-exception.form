@@ -33,7 +33,9 @@
       "id": "Field_exceptionForm_affectedAmount",
       "key": "exceptionForm.affectedAmount",
       "validate": {
-        "required": false
+        "required": false,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -42,7 +44,8 @@
       "id": "Field_exceptionForm_exceptionNotes",
       "key": "exceptionForm.exceptionNotes",
       "validate": {
-        "required": true
+        "required": true,
+        "maxLength": 1000
       }
     },
     {
@@ -51,7 +54,9 @@
       "id": "Field_exceptionForm_recordedBy",
       "key": "exceptionForm.recordedBy",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     }
   ],

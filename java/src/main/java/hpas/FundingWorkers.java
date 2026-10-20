@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -14,6 +16,8 @@ import java.util.Map;
 /**
  * 选择 6：P7 资助确定与记录（医院 Pool：财务团队）
  * 对应模型 p7-funding-determination.bpmn —— 双 Pool 结构，外部方见 {@link FunderPoolWorkers}。
+ *
+ * <p>数据库：资助验证结论 / 批准金额 / 限制条件写入 funding_case 表（caseId 唯一）。
  */
 @Component
 public class FundingWorkers {
@@ -21,9 +25,11 @@ public class FundingWorkers {
     private static final Logger LOG = LoggerFactory.getLogger(FundingWorkers.class);
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public FundingWorkers(CamundaClient camundaClient) {
+    public FundingWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /** 验证资助（BR-15 支付前置门控；BR-17 判断是否需要审批）。 */
@@ -50,21 +56,29 @@ public class FundingWorkers {
 
         String note;
         if (!needsApproval) {
-            note = source + " 无需外部审批，按自费 / 豁免登记";
+            note = source + ": no external approval required; recorded as self-pay / exemption";
         } else if (hasRef) {
-            note = "授权参考号 " + authorizationRef + " 已登记，等待"
-                    + ("insurance".equals(source) ? "保险公司" : "资助机构") + "审批回执";
+            note = "Authorisation reference " + authorizationRef + " registered; awaiting "
+                    + ("insurance".equals(source) ? "insurance provider" : "funding agency") + " approval confirmation";
         } else {
-            note = "缺少授权参考号，仍按需审批处理";
+            note = "Authorisation reference missing; routed for approval";
         }
 
-        return Support.vars(
+        Map<String, Object> result = Support.vars(
                 "fundingValid", needsApproval ? hasRef : true,
                 "approvalRequired", needsApproval,
                 "fundingSource", source,
                 "authorizationRef", authorizationRef,
                 "validationNote", note,
                 "validatedAt", Support.stamp());
+
+        // --- 数据库持久化：资助案例登记（funding_case 表） ---
+        Map<String, Object> merged = new java.util.LinkedHashMap<>(vars);
+        merged.putAll(result);
+        db.recordFunding(merged, JobContext.of(job, "funding-validation"));
+        // --- 持久化结束 ---
+
+        return result;
     }
 
     /**
@@ -77,6 +91,10 @@ public class FundingWorkers {
         try {
             Map<String, Object> variables = job.getVariablesAsMap();
             String appointmentId = Support.str(variables, "appointmentId", "");
+
+            // --- 数据库持久化：审批请求已发出（funding_case.status=pending + 审计） ---
+            db.recordFunding(variables, JobContext.of(job, "send-funding-request"));
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("FundingApprovalRequested")

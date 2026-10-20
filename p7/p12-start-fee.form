@@ -6,29 +6,39 @@
       "id": "Field_caseId",
       "key": "caseId",
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
       "label": "Appointment number",
       "type": "textfield",
       "id": "Field_appointmentId",
-      "key": "appointmentId"
+      "key": "appointmentId",
+      "validate": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
+      }
     },
     {
       "label": "Calculated cost amount (BR-16)",
-      "type": "textfield",
+      "type": "number",
       "id": "Field_calculatedAmount",
       "key": "calculatedAmount",
       "validate": {
-        "required": true
+        "required": true,
+        "min": 0,
+        "max": 1000000
       }
     },
     {
       "label": "Confirmed funding sources (from the funding confirmation stage)",
       "type": "textfield",
       "id": "Field_fundingSource",
-      "key": "fundingSource"
+      "key": "fundingSource",
+      "validate": {
+        "minLength": 2,
+        "maxLength": 80
+      }
     }
   ],
   "schemaVersion": 19,

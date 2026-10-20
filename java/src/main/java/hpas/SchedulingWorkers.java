@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -10,14 +12,18 @@ import java.util.Map;
 /**
  * 选择 3：P3 新患者预约排程
  * 对应模型 p3-appointment-scheduling.bpmn（含 Timer 重试环）。
+ *
+ * <p>数据库：号源与预约时间写入 appointment 表（appointmentId 唯一）。
  */
 @Component
 public class SchedulingWorkers {
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public SchedulingWorkers(CamundaClient camundaClient) {
+    public SchedulingWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /**
@@ -32,6 +38,11 @@ public class SchedulingWorkers {
         try {
             Map<String, Object> vars = job.getVariablesAsMap();
             String referralId = Support.str(vars, "referralId", "");
+
+            // --- 数据库持久化：排程请求（预约行 + 审计） ---
+            JobContext ctx = JobContext.of(job, "send-scheduling-request");
+            db.upsertAppointment(vars, ctx);
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("SchedulingRequested")
@@ -68,6 +79,11 @@ public class SchedulingWorkers {
                         "slotReference", vars.get("slotReference"),
                         "appointmentDateTime", vars.get("appointmentDateTime"),
                         "location", vars.get("location")));
+
+        // --- 数据库持久化：确认预约（appointmentDateTime -> confirmedAt） ---
+        db.upsertAppointment(vars, JobContext.of(job, "notify-notification-team"));
+        // --- 持久化结束 ---
+
         return Support.vars("notificationTeamNotified", true, "notifiedAt", Support.stamp());
     }
 }

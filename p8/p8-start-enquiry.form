@@ -6,7 +6,8 @@
       "id": "Field_enquiryId",
       "key": "enquiryId",
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
@@ -38,7 +39,8 @@
       "id": "Field_enquiryForm_content",
       "key": "enquiryForm.content",
       "validate": {
-        "required": true
+        "required": true,
+        "maxLength": 1000
       }
     },
     {
@@ -46,19 +48,32 @@
       "type": "textfield",
       "id": "Field_enquiryForm_urgentKeywords",
       "key": "enquiryForm.urgentKeywords",
-      "description": "For the enquiry-triage worker to judge urgency; leave blank if there are no obvious urgent signs"
+      "description": "For the enquiry-triage worker to judge urgency; leave blank if there are no obvious urgent signs",
+      "validate": {
+        "minLength": 2,
+        "maxLength": 80
+      }
     },
     {
       "label": "Incoming call channels (phone / portal / email...)",
       "type": "textfield",
       "id": "Field_enquiryForm_channel",
-      "key": "enquiryForm.channel"
+      "key": "enquiryForm.channel",
+      "validate": {
+        "minLength": 2,
+        "maxLength": 80
+      }
     },
     {
       "label": "Patient Name",
       "type": "textfield",
       "id": "Field_patientName",
-      "key": "patientName"
+      "key": "patientName",
+      "validate": {
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
+      }
     }
   ],
   "schemaVersion": 19,

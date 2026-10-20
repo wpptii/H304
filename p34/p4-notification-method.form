@@ -33,21 +33,30 @@
       "id": "Field_notificationForm_contactValue",
       "key": "notificationForm.contactValue",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
       "label": "Notification Language (fill in when \"Translate Notification\" is selected)",
       "type": "textfield",
       "id": "Field_notificationForm_language",
-      "key": "notificationForm.language"
+      "key": "notificationForm.language",
+      "validate": {
+        "minLength": 2,
+        "maxLength": 80
+      }
     },
     {
       "label": "Remarks",
       "type": "textarea",
       "id": "Field_notificationForm_notes",
       "key": "notificationForm.notes",
-      "description": "Special Assistance Needs, etc."
+      "description": "Special Assistance Needs, etc.",
+      "validate": {
+        "maxLength": 1000
+      }
     }
   ],
   "schemaVersion": 19,

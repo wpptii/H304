@@ -10,7 +10,8 @@
         "columns": null
       },
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
@@ -23,7 +24,8 @@
         "columns": null
       },
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
@@ -36,12 +38,13 @@
         "columns": null
       },
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
       "label": "Appointment Date appointmentDate (YYYY-MM-DD; a phone call will be required within two weeks)",
-      "type": "textfield",
+      "type": "datetime",
       "id": "Field_appointmentDate",
       "key": "appointmentDate",
       "layout": {
@@ -51,7 +54,8 @@
       "validate": {
         "required": true,
         "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-      }
+      },
+      "subtype": "date"
     },
     {
       "label": "Patient Name",
@@ -63,7 +67,9 @@
         "columns": null
       },
       "validate": {
-        "required": false
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     }
   ],

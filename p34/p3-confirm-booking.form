@@ -6,7 +6,9 @@
       "id": "Field_confirmForm_appointmentDateTime",
       "key": "confirmForm.appointmentDateTime",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -15,7 +17,9 @@
       "id": "Field_confirmForm_location",
       "key": "confirmForm.location",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     },
     {
@@ -24,7 +28,8 @@
       "id": "Field_confirmForm_slotReference",
       "key": "confirmForm.slotReference",
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9\\-]{2,29}$"
       }
     },
     {
@@ -40,7 +45,9 @@
       "id": "Field_confirmForm_confirmedBy",
       "key": "confirmForm.confirmedBy",
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     }
   ],

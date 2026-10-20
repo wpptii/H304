@@ -37,7 +37,8 @@
         "columns": null
       },
       "validate": {
-        "required": true
+        "required": true,
+        "maxLength": 1000
       }
     },
     {
@@ -50,7 +51,9 @@
         "columns": null
       },
       "validate": {
-        "required": true
+        "required": true,
+        "minLength": 2,
+        "maxLength": 80
       }
     }
   ],

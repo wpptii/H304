@@ -56,7 +56,8 @@
       "id": "Field_failureForm_notes",
       "key": "failureForm.notes",
       "validate": {
-        "required": false
+        "required": false,
+        "maxLength": 1000
       }
     }
   ],

@@ -1,5 +1,7 @@
 package hpas;
 
+import hpas.db.JobContext;
+import hpas.db.PersistenceService;
 import io.camunda.client.CamundaClient;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.api.response.ActivatedJob;
@@ -22,9 +24,11 @@ public class SchedulingPoolWorkers {
     private static final Logger LOG = LoggerFactory.getLogger(SchedulingPoolWorkers.class);
 
     private final CamundaClient camundaClient;
+    private final PersistenceService db;
 
-    public SchedulingPoolWorkers(CamundaClient camundaClient) {
+    public SchedulingPoolWorkers(CamundaClient camundaClient, PersistenceService db) {
         this.camundaClient = camundaClient;
+        this.db = db;
     }
 
     /**
@@ -52,18 +56,35 @@ public class SchedulingPoolWorkers {
                 "attempt", attempt));
 
         if (attempt <= failTimes) {
-            return Support.vars(
+            Map<String, Object> failed = Support.vars(
                     "schedulerAttempt", attempt,
                     "scheduleStatus", "failed",
-                    "failureReason", "模拟：第 " + attempt + " 次无可用号源",
+                    "failureReason", "Simulation: attempt " + attempt + ": no slots available",
                     "slotReference", null);
+            recordAttempt(job, vars, attempt, failed);
+            return failed;
         }
 
-        return Support.vars(
+        Map<String, Object> success = Support.vars(
                 "schedulerAttempt", attempt,
                 "scheduleStatus", "success",
                 "slotReference", "SLOT-" + referralId + "-" + attempt,
                 "failureReason", null);
+        recordAttempt(job, vars, attempt, success);
+        return success;
+    }
+
+    /** 把号源分配结果（成功 / 失败重试）落库：appointment 行 + 审计。 */
+    private void recordAttempt(ActivatedJob job, Map<String, Object> vars, int attempt,
+                               Map<String, Object> outcome) {
+        Map<String, Object> merged = new java.util.LinkedHashMap<>(vars);
+        merged.putAll(outcome);
+        JobContext ctx = JobContext.of(job, "scheduler-process-request");
+        db.upsertAppointment(merged, ctx);
+        db.audit(ctx, "scheduler-attempt-" + attempt, Support.str(merged, "referralId", null),
+                "scheduleStatus=" + outcome.get("scheduleStatus")
+                        + " slotReference=" + outcome.get("slotReference")
+                        + " failureReason=" + outcome.get("failureReason"));
     }
 
     /** 消息结束事件「回传排程结果」的 Worker。 */
@@ -73,6 +94,10 @@ public class SchedulingPoolWorkers {
         try {
             Map<String, Object> vars = job.getVariablesAsMap();
             String referralId = Support.str(vars, "referralId", "");
+
+            // --- 数据库持久化：回传前的最后一次预约状态 ---
+            db.upsertAppointment(vars, JobContext.of(job, "scheduler-send-result"));
+            // --- 持久化结束 ---
 
             camundaClient.newPublishMessageCommand()
                     .messageName("SchedulingResult")

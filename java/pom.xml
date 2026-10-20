@@ -44,6 +44,54 @@
             <version>${camunda.version}</version>
         </dependency>
 
+        <!--
+          数据库持久层（新增）：
+          流程变量只活在流程实例里；下面这些依赖让「案例数据」落到真正的数据库文件里，
+          流程结束 / 应用重启后依然存在，并可用 SQL 做跨实例的统计报表。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- 演示用文件型数据库（runtime：应用只需要 JDBC 驱动，编译期用不到） -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- 只读演示 API（/api/db/**，监听 8090；8080 留给 Camunda） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- 浏览器里的 H2 控制台（http://127.0.0.1:8090/h2-console）。
+             Spring Boot 4 起 H2 控制台的自动配置被拆成独立模块，starter-web / starter-data-jpa
+             都不再传递引入，少了它就只会 404（Whitelabel Error Page）。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-h2console</artifactId>
+        </dependency>
+
+        <!--
+          生产环境可换成 MySQL / PostgreSQL：把上面的 h2 换成其中一个（或额外加上）即可，
+          并在 application.properties 里改 spring.datasource.url / driver-class-name。
+
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        -->
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

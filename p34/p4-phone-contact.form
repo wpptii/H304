@@ -29,7 +29,8 @@
       "id": "Field_phoneContactForm_phoneNumber",
       "key": "phoneContactForm.phoneNumber",
       "validate": {
-        "required": true
+        "required": true,
+        "pattern": "^[0-9+()\\- ]{7,20}$"
       }
     },
     {
@@ -43,7 +44,10 @@
       "label": "Call Remarks",
       "type": "textarea",
       "id": "Field_phoneContactForm_remarks",
-      "key": "phoneContactForm.remarks"
+      "key": "phoneContactForm.remarks",
+      "validate": {
+        "maxLength": 1000
+      }
     }
   ],
   "schemaVersion": 19,
